@@ -6,6 +6,7 @@ You add one import and your x402 calls gain spend limits, rate limits, usage quo
 Built for the Avalanche x402 Hack2Build Payments track (Tooling and Infrastructure).
 
 ---
+<img width="1024" height="434" alt="image" src="https://github.com/user-attachments/assets/dc5bdc14-b5f5-4301-8761-bda8a83de4c5" />
 
 ## Why 402Guard
 
