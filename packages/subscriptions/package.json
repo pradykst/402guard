@@ -1,0 +1,12 @@
+{
+  "name": "@402guard/subscriptions",
+  "version": "0.0.1",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "clean": "rimraf dist"
+  }
+}
