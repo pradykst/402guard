@@ -55,6 +55,14 @@ Teams also still need classic subscription offerings like monthly plans and usag
 - Preconfigured networks for Avalanche Fuji and C Chain.
 - Ready to plug in Avalanche compatible x402 facilitators.
 
+**USP's**
+- Makes x402 usage safe and explainable by enforcing budgets, subscriptions and analytics around any facilitator. Think internal policy and billing brain.
+
+**Extra features that are strong selling points:**    
+
+- Policy engine that works across many merchants, not just one.
+- Subscription registry plus invoices that are on chain anchored but app friendly.
+- Self hosted analytics page that any team can run next to their agents and APIs.
 ---
 
 ## High level architecture

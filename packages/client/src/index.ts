@@ -1,38 +1,44 @@
-// Basic policy types for budgets and rate limits
+import {
+    BudgetPolicy,
+    ServicePolicy,
+    PolicyConfig,
+    UsageContext,
+    EnforcementResult
+} from "./types";
+import { InMemoryUsageStore, UsageStore } from "./store";
+import { enforcePolicies } from "./policies";
 
-export type BudgetPolicy = {
-    dailyUsdCap?: number;
-    monthlyUsdCap?: number;
+// Re-export types so library users can import them from "@402guard/client"
+export type {
+    BudgetPolicy,
+    ServicePolicy,
+    PolicyConfig,
+    UsageContext,
+    EnforcementResult,
+    UsageStore
 };
-
-export type ServicePolicy = BudgetPolicy & {
-    requestsPerMinute?: number;
-};
-
-export type PolicyConfig = {
-    global?: BudgetPolicy;
-    services?: Record<string, ServicePolicy>;
-    agents?: Record<string, BudgetPolicy>;
-};
+export { InMemoryUsageStore, enforcePolicies };
 
 export type GuardedClientOptions = {
     policies?: PolicyConfig;
+    store?: UsageStore;
 };
 
-/**
- * Very early stub.
- * Later we will wrap a real x402-aware HTTP client.
- */
 export function createGuardedClient(options: GuardedClientOptions = {}) {
-    const policies = options.policies ?? {};
+    const policies: PolicyConfig = options.policies ?? {};
+    const store: UsageStore = options.store ?? new InMemoryUsageStore();
 
-    function hello() {
-        const serviceCount = Object.keys(policies.services ?? {}).length;
-        return `402Guard client ready with ${serviceCount} service polic${serviceCount === 1 ? "y" : "ies"}.`;
+    function checkAndRecord(ctx: UsageContext): EnforcementResult {
+        const res = enforcePolicies(store, policies, ctx);
+        if (res.allowed) {
+            store.recordUsage(ctx);
+        }
+        return res;
     }
 
     return {
-        options: { policies },
-        hello,
+        policies,
+        store,
+        checkAndRecord
     };
 }
