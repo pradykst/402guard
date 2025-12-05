@@ -10,6 +10,13 @@ import { enforcePolicies } from "./policies";
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
 import axios from "axios";
 import { extractServiceIdFromUrl } from "./url";
+import {
+    getServiceSpendSummary,
+    getAgentSpendSummary,
+    type ServiceSpendSummary,
+    type AgentSpendSummary
+} from "./analytics";
+
 
 // Re-export types so library users can import them from "@402guard/client"
 export type {
@@ -18,9 +25,11 @@ export type {
     PolicyConfig,
     UsageContext,
     EnforcementResult,
-    UsageStore
+    UsageStore,
+    ServiceSpendSummary,
+    AgentSpendSummary
 };
-export { InMemoryUsageStore, enforcePolicies };
+export { InMemoryUsageStore, enforcePolicies, getServiceSpendSummary, getAgentSpendSummary };
 
 export type GuardedClientOptions = {
     policies?: PolicyConfig;

@@ -7,6 +7,7 @@ export interface UsageStore {
     recordUsage(ctx: UsageContext): UsageRecord;
     getDailySpendUsd(args: { date: Date; serviceId?: string; agentId?: string }): number;
     getMonthlySpendUsd(args: { date: Date; serviceId?: string; agentId?: string }): number;
+    getRecords(): UsageRecord[];
 }
 
 /**
@@ -15,6 +16,9 @@ export interface UsageStore {
  */
 export class InMemoryUsageStore implements UsageStore {
     private records: UsageRecord[] = [];
+    reset() {
+        this.records = [];
+    }
 
     recordUsage(ctx: UsageContext): UsageRecord {
         const rec: UsageRecord = {
@@ -23,6 +27,10 @@ export class InMemoryUsageStore implements UsageStore {
         };
         this.records.push(rec);
         return rec;
+    }
+    getRecords(): UsageRecord[] {
+        // Return a shallow copy so callers cannot mutate internal array by accident
+        return [...this.records];
     }
 
     private filterByWindow(
