@@ -15,10 +15,58 @@ const policies: PolicyConfig = {
   }
 };
 
+// x402 stub helpers for the demo.
+// We type them as `any` here to avoid cross-package type wiring noise.
+
+function selectPaymentOptionStub(quote: any) {
+  // In a real flow you might inspect `quote.accepts` and pick based on network/asset.
+  return quote.accepts[0];
+}
+
+function estimateUsdFromQuoteStub(quote: any, option: any): number {
+  // For Avalanche USDC later:
+  // return parseInt(option.maxAmountRequired, 10) / 1_000_000;
+  // For now, just treat every x402 quote as $0.01.
+  return 0.01;
+}
+
+async function payWithX402Stub(args: {
+  quote: any;
+  option: any;
+  originalConfig: any;
+  axiosInstance: any;
+}) {
+  console.log("Simulating x402 payment with facilitator stub", {
+    network: args.option.network,
+    asset: args.option.asset,
+  });
+
+  // In real life:
+  // 1) Build X-PAYMENT header/body
+  // 2) Send axiosInstance.request with those headers
+  // 3) Parse X-PAYMENT-RESPONSE header
+  const response = await args.axiosInstance.request(args.originalConfig);
+
+  const settlement = {
+    success: true,
+    transaction: "0x-simulated",
+    network: "avalanche-fuji",
+    payer: "0x-simulated-payer",
+    errorReason: null,
+  };
+
+  return { response, settlement };
+}
+
+
 const http = createGuardedAxios({
   policies,
   agentId: "demo-agent",
-  estimateUsdForRequest: () => 0.01
+  estimateUsdForRequest: () => 0.01,
+  facilitatorId: "stub-facilitator",
+  selectPaymentOption: selectPaymentOptionStub,
+  estimateUsdFromQuote: estimateUsdFromQuoteStub,
+  payWithX402: payWithX402Stub,
 });
 
 export default function HomePage() {
