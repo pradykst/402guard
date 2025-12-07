@@ -13,8 +13,10 @@ import { extractServiceIdFromUrl } from "./url";
 import {
     getServiceSpendSummary,
     getAgentSpendSummary,
+    getSubscriptionSpendSummary,
     type ServiceSpendSummary,
-    type AgentSpendSummary
+    type AgentSpendSummary,
+    type SubscriptionSpendSummary,
 } from "./analytics";
 import { generateInvoiceCsv } from "./invoice";
 
@@ -30,9 +32,10 @@ export type {
     UsageStore,
     ServiceSpendSummary,
     AgentSpendSummary,
+    SubscriptionSpendSummary,
 
 };
-export { InMemoryUsageStore, enforcePolicies, getServiceSpendSummary, getAgentSpendSummary, generateInvoiceCsv };
+export { InMemoryUsageStore, enforcePolicies, getServiceSpendSummary, getAgentSpendSummary, generateInvoiceCsv, getSubscriptionSpendSummary };
 export type { InvoiceRow } from "./invoice";
 
 
@@ -51,6 +54,18 @@ export type GuardedClient = {
 
     // NEW: check only, no recording
     preview(ctx: UsageContext): EnforcementResult;
+};
+
+export type SubscriptionPlan = {
+    id: string;
+    name: string;
+    monthlyUsdCap: number;
+};
+
+export type SubscriptionGuardOptions = {
+    plan: SubscriptionPlan;
+    basePolicies?: PolicyConfig;
+    store?: UsageStore;
 };
 
 import type {
@@ -78,6 +93,7 @@ export type SelectPaymentOptionFn = (quote: X402Quote) => X402AcceptOption;
 export type GuardedAxiosOptions = GuardedClientOptions & {
     axiosInstance?: AxiosInstance;
     agentId?: string;
+    subscriptionId?: string;
 
     // Existing simple estimator (still useful for non-x402 flows)
     estimateUsdForRequest?: (config: AxiosRequestConfig) => number;
@@ -89,6 +105,12 @@ export type GuardedAxiosOptions = GuardedClientOptions & {
     payWithX402?: PayWithX402Fn;
 };
 
+export function createSubscriptionAxios(options: SubscriptionGuardOptions) {
+    // internally calls createGuardedAxios with:
+    // - a policy that sets global.dailyUsdCap = plan.monthlyUsdCap (or a fraction for demo)
+    // - a store (shared with the rest of the app)
+    // - and automatically injects subscriptionId into UsageContext via a thin wrapper
+}
 
 
 
@@ -135,93 +157,84 @@ export function createGuardedClient(
 
 
 export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
-    const { agentId, estimateUsdForRequest } = options;
-
+    const { agentId, subscriptionId, estimateUsdForRequest } = options;
     const core = createGuardedClient(options);
 
     const axiosInstance =
         options.axiosInstance ??
         axios.create({});
 
+    // do we have x402 hooks wired?
+    const hasX402 =
+        !!options.payWithX402 &&
+        !!options.selectPaymentOption &&
+        !!options.estimateUsdFromQuote;
+
     async function guardedRequest<T = any, R = AxiosResponse<T>>(
         config: AxiosRequestConfig
     ): Promise<R> {
+        // 1) Build URL and serviceId
         const url = config.baseURL
             ? new URL(config.url ?? "", config.baseURL).toString()
             : (config.url ?? "");
 
         const serviceId = extractServiceIdFromUrl(url);
 
-        const hasX402Hooks =
-            !!options.payWithX402 &&
-            !!options.selectPaymentOption &&
-            !!options.estimateUsdFromQuote;
+        // ---------- SIMPLE (non-x402) PATH ----------
+        if (!hasX402) {
+            const usdAmount =
+                estimateUsdForRequest?.(config) ?? 0;
 
-        // 1) Normal path (no x402 hooks configured)
-        if (!hasX402Hooks) {
-            const usdAmount = estimateUsdForRequest?.(config) ?? 0;
-            const now = new Date();
-
-            const checkRes = core.checkAndRecord({
+            const ctx: UsageContext = {
                 serviceId,
                 agentId,
+                subscriptionId,          // 🔹 tag subscription
                 usdAmount,
-                timestamp: now,
-            });
+                timestamp: new Date(),
+            };
 
-            if (!checkRes.allowed) {
+            const res = core.checkAndRecord(ctx);
+
+            if (!res.allowed) {
                 const error = new Error(
-                    `402Guard blocked request to ${serviceId}: ${checkRes.reason}`
+                    `402Guard blocked request to ${serviceId}: ${res.reason}`
                 );
-                // attach metadata for the UI
-                // @ts-expect-error
-                error.guard402 = {
-                    serviceId,
-                    agentId,
-                    usdAmount,
-                    reason: checkRes.reason,
-                    phase: "pre",
-                };
+                // @ts-expect-error attach meta
+                error.guard402 = { serviceId, ctx, res };
                 throw error;
             }
 
             return axiosInstance.request<T, R>(config);
         }
 
-        // 2) x402 path
-        let initialResponse: AxiosResponse<T> | undefined;
+        // ---------- x402 PATH ----------
 
+        // First request: get quote (402) or maybe 200
+        let initialResponse: AxiosResponse<T>;
         try {
-            // Axios throws on 4xx, so we need to catch and inspect the response
             initialResponse = await axiosInstance.request<T>(config);
         } catch (err: any) {
-            if (axios.isAxiosError(err) && err.response?.status === 402) {
-                initialResponse = err.response as AxiosResponse<T>;
-            } else {
-                throw err;
-            }
+            throw err;
         }
 
-        if (!initialResponse) {
-            throw new Error("402Guard: no initial response from axios");
-        }
-
-        // If it was not a 402, just return it
+        // If it wasn't 402, nothing to pay; just return the response.
         if (initialResponse.status !== 402) {
             return initialResponse as R;
         }
 
-        // 3) We have a 402 with an x402 quote body
+        // 4) Parse 402 quote body
         const quote = initialResponse.data as X402Quote;
         const option = options.selectPaymentOption!(quote);
 
+        // 5) Estimate USD cost from quote
         const usdAmount = options.estimateUsdFromQuote!(quote, option);
         const now = new Date();
 
-        // 4) Preview budget before paying
-        const previewRes = core.preview({
+        // 6) Preview budget BEFORE paying
+        const previewCtx: UsageContext = {
             serviceId,
             agentId,
+            subscriptionId,          // 🔹 tag subscription here too
             usdAmount,
             timestamp: now,
             x402: {
@@ -229,16 +242,19 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
                 network: option.network,
                 asset: option.asset,
             },
-        });
+        };
+
+        const previewRes = core.preview(previewCtx);
 
         if (!previewRes.allowed) {
             const error = new Error(
                 `402Guard blocked x402 payment to ${serviceId}: ${previewRes.reason}`
             );
-            // @ts-expect-error
+            // @ts-expect-error attach meta
             error.guard402 = {
                 serviceId,
                 agentId,
+                subscriptionId,
                 usdAmount,
                 reason: previewRes.reason,
                 phase: "quote",
@@ -246,18 +262,20 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
             throw error;
         }
 
-        // 5) Ask facilitator to pay and retry with payment headers
-        const { response: finalResponse, settlement } = await options.payWithX402!({
-            quote,
-            option,
-            originalConfig: config,
-            axiosInstance,
-        });
+        // 7) Ask facilitator to pay & retry the request with X-PAYMENT
+        const { response: finalResponse, settlement } =
+            await options.payWithX402!({
+                quote,
+                option,
+                originalConfig: config,
+                axiosInstance,
+            });
 
-        // 6) Record spend after successful payment
-        core.checkAndRecord({
+        // 8) Record usage AFTER successful payment
+        const recordCtx: UsageContext = {
             serviceId,
             agentId,
+            subscriptionId,          // 🔹 and here
             usdAmount,
             timestamp: new Date(),
             x402: {
@@ -266,7 +284,9 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
                 asset: option.asset,
                 transaction: settlement?.transaction ?? null,
             },
-        });
+        };
+
+        core.checkAndRecord(recordCtx);
 
         return finalResponse as R;
     }
@@ -276,3 +296,7 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
         guard: core,
     });
 }
+
+
+
+

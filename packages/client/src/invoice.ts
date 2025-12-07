@@ -7,6 +7,20 @@ export type InvoiceRow = {
     usdAmount: number;
 };
 
+export type Invoice = {
+    subscriptionId: string;
+    periodStart: string;
+    periodEnd: string;
+    totalUsd: number;
+    lineItems: {
+        serviceId: string;
+        calls: number;
+        usd: number;
+    }[];
+    generatedAt: string;
+};
+
+
 /**
  * Generate a simple CSV invoice from the UsageStore.
  *

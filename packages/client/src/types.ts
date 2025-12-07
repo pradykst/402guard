@@ -56,6 +56,7 @@ export type UsageContext = {
     usdAmount: number;       // how much this call is expected to cost
     timestamp: Date;         // when this call is happening
     x402?: X402Meta;
+    subscriptionId?: string;
 };
 
 export type UsageRecord = UsageContext & {

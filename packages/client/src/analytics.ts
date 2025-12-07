@@ -13,6 +13,40 @@ export type AgentSpendSummary = {
     count: number;
 };
 
+export type SubscriptionSpendSummary = {
+    subscriptionId: string;
+    count: number;
+    totalUsd: number;
+};
+
+
+export function getSubscriptionSpendSummary(
+    store: UsageStore
+): SubscriptionSpendSummary[] {
+    // iterate over store.getAll(), group by subscriptionId, ignore undefined
+    const acc = new Map<string, { count: number; totalUsd: number }>();
+
+    for (const r of store.getRecords()) {
+        // we only care about records that have a subscriptionId
+        const subId = (r as any).subscriptionId as string | undefined;
+        if (!subId) continue;
+
+        const current = acc.get(subId) ?? { count: 0, totalUsd: 0 };
+        current.count += 1;
+        current.totalUsd += r.usdAmount;
+        acc.set(subId, current);
+    }
+
+    return Array.from(acc.entries()).map(
+        ([subscriptionId, { count, totalUsd }]) => ({
+            subscriptionId,
+            count,
+            totalUsd,
+        })
+    );
+}
+
+
 /**
  * Aggregate total spend per service across all records.
  */
