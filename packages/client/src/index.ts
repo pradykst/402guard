@@ -129,6 +129,7 @@ export function createGuardedClient(
  *    Only successful payments are recorded, with optional x402 metadata.
  */
 
+
 export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
     const { agentId, estimateUsdForRequest } = options;
 
@@ -136,16 +137,7 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
 
     const axiosInstance =
         options.axiosInstance ??
-        axios.create({
-            validateStatus: () => true,
-        });
-
-    const hasX402Hooks =
-        Boolean(
-            options.payWithX402 &&
-            options.selectPaymentOption &&
-            options.estimateUsdFromQuote
-        );
+        axios.create({});
 
     async function guardedRequest<T = any, R = AxiosResponse<T>>(
         config: AxiosRequestConfig
@@ -156,31 +148,34 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
 
         const serviceId = extractServiceIdFromUrl(url);
 
-        // -------------------------
-        // Path A: simple budgeted HTTP call (no x402 hooks configured)
-        // -------------------------
+        const hasX402Hooks =
+            !!options.payWithX402 &&
+            !!options.selectPaymentOption &&
+            !!options.estimateUsdFromQuote;
+
+        // 1) Normal path (no x402 hooks configured)
         if (!hasX402Hooks) {
             const usdAmount = estimateUsdForRequest?.(config) ?? 0;
+            const now = new Date();
 
-            const ctx: UsageContext = {
+            const checkRes = core.checkAndRecord({
                 serviceId,
                 agentId,
                 usdAmount,
-                timestamp: new Date(),
-            };
+                timestamp: now,
+            });
 
-            const res = core.checkAndRecord(ctx);
-
-            if (!res.allowed) {
+            if (!checkRes.allowed) {
                 const error = new Error(
-                    `402Guard blocked request to ${serviceId}: ${res.reason}`
+                    `402Guard blocked request to ${serviceId}: ${checkRes.reason}`
                 );
-                // @ts-expect-error attach metadata for app code
+                // attach metadata for the UI
+                // @ts-expect-error
                 error.guard402 = {
                     serviceId,
                     agentId,
                     usdAmount,
-                    reason: res.reason,
+                    reason: checkRes.reason,
                     phase: "pre",
                 };
                 throw error;
@@ -189,48 +184,37 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
             return axiosInstance.request<T, R>(config);
         }
 
-        // -------------------------
-        // Path B: x402-enabled flow (quote → preview → pay → record)
-        // -------------------------
+        // 2) x402 path
+        let initialResponse: AxiosResponse<T> | undefined;
 
-        // 1) First attempt: request that may return 402 with a quote
-        let initialResponse: AxiosResponse<T>;
         try {
+            // Axios throws on 4xx, so we need to catch and inspect the response
             initialResponse = await axiosInstance.request<T>(config);
         } catch (err: any) {
-            throw err;
+            if (axios.isAxiosError(err) && err.response?.status === 402) {
+                initialResponse = err.response as AxiosResponse<T>;
+            } else {
+                throw err;
+            }
         }
 
-        // If we didn't get a 402, there is nothing special to do.
-        // Optionally, if we have estimateUsdForRequest, we can still record spend.
-        if (
-            initialResponse.status !== 402 ||
-            !options.payWithX402 ||
-            !options.selectPaymentOption ||
-            !options.estimateUsdFromQuote
-        ) {
-            const usdAmount = estimateUsdForRequest?.(config);
-            if (usdAmount != null) {
-                core.checkAndRecord({
-                    serviceId,
-                    agentId,
-                    usdAmount,
-                    timestamp: new Date(),
-                });
-            }
+        if (!initialResponse) {
+            throw new Error("402Guard: no initial response from axios");
+        }
+
+        // If it was not a 402, just return it
+        if (initialResponse.status !== 402) {
             return initialResponse as R;
         }
 
-        // 2) We have a 402 quote → parse it
+        // 3) We have a 402 with an x402 quote body
         const quote = initialResponse.data as X402Quote;
-        const option = options.selectPaymentOption(quote);
+        const option = options.selectPaymentOption!(quote);
 
-        // 3) Use the quote to estimate USD price
-        const usdAmount = options.estimateUsdFromQuote(quote, option);
-
+        const usdAmount = options.estimateUsdFromQuote!(quote, option);
         const now = new Date();
 
-        // 4) Preview policy BEFORE paying
+        // 4) Preview budget before paying
         const previewRes = core.preview({
             serviceId,
             agentId,
@@ -258,15 +242,15 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
             throw error;
         }
 
-        // 5) Ask facilitator to pay & retry with X-PAYMENT
-        const { response: finalResponse, settlement } = await options.payWithX402({
+        // 5) Ask facilitator to pay and retry with payment headers
+        const { response: finalResponse, settlement } = await options.payWithX402!({
             quote,
             option,
             originalConfig: config,
             axiosInstance,
         });
 
-        // 6) Record usage AFTER successful payment
+        // 6) Record spend after successful payment
         core.checkAndRecord({
             serviceId,
             agentId,
@@ -288,6 +272,3 @@ export function createGuardedAxios(options: GuardedAxiosOptions = {}) {
         guard: core,
     });
 }
-
-
-

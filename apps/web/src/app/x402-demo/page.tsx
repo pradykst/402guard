@@ -5,69 +5,74 @@ import { createGuardedAxios } from "@402guard/client";
 
 type LogEntry = string;
 
+// --- x402 helpers at module scope ---
+
+function selectPaymentOptionStub(quote: any) {
+    // Our fake API only returns a single option.
+    return quote.accepts[0];
+}
+
+function estimateUsdFromQuoteStub(quote: any, option: any): number {
+    // In real life: convert maxAmountRequired from smallest units to USD.
+    // For the demo, treat every quote as $0.01 so our budgets stay simple.
+    return 0.01;
+}
+
+async function payWithX402Stub(args: {
+    quote: any;
+    option: any;
+    originalConfig: any;
+    axiosInstance: any;
+}) {
+    const paidConfig = {
+        ...args.originalConfig,
+        headers: {
+            ...(args.originalConfig.headers || {}),
+            "x-test-payment": "paid",
+        },
+    };
+
+    const response = await args.axiosInstance.request(paidConfig);
+
+    const settlement = {
+        success: true,
+        transaction: "0x-demo-tx",
+        network: args.option.network,
+        payer: "0x-demo-payer",
+        errorReason: null,
+    };
+
+    return { response, settlement };
+}
+
+// --- guarded client at module scope (store persists across renders) ---
+
+const x402Http = createGuardedAxios({
+    policies: {
+        services: {
+            // extractServiceIdFromUrl("http://localhost:3000/...") => "localhost"
+            "localhost:3000": {
+                dailyUsdCap: 0.03, // three calls at $0.01, then blocked
+            },
+        },
+    },
+    agentId: "x402-demo-agent",
+
+    // Not used in this flow; price comes from the quote
+    estimateUsdForRequest: undefined,
+
+    facilitatorId: "local-fake-facilitator",
+    selectPaymentOption: selectPaymentOptionStub,
+    estimateUsdFromQuote: estimateUsdFromQuoteStub,
+    payWithX402: payWithX402Stub,
+});
+
+// --- React component uses the shared client ---
+
 export default function X402DemoPage() {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [blocked, setBlocked] = useState(false);
     const [callCount, setCallCount] = useState(0);
-
-    // Very simple x402 helpers just for the demo.
-    // We keep them untyped here to avoid pulling more types into the app bundle.
-
-    function selectPaymentOptionStub(quote: any) {
-        // Our fake API only returns a single option.
-        return quote.accepts[0];
-    }
-
-    function estimateUsdFromQuoteStub(quote: any, option: any): number {
-        // In real life: convert maxAmountRequired from smallest units to USD.
-        // For the demo, treat every quote as $0.01 to reuse our mental model.
-        return 0.01;
-    }
-
-    async function payWithX402Stub(args: {
-        quote: any;
-        option: any;
-        originalConfig: any;
-        axiosInstance: any;
-    }) {
-        // Simulate "pay then retry" by calling the same endpoint
-        // with an extra header the API route is looking for.
-        const paidConfig = {
-            ...args.originalConfig,
-            headers: {
-                ...(args.originalConfig.headers || {}),
-                "x-test-payment": "paid",
-            },
-        };
-
-        const response = await args.axiosInstance.request(paidConfig);
-
-        const settlement = {
-            success: true,
-            transaction: "0x-demo-tx",
-            network: args.option.network,
-            payer: "0x-demo-payer",
-            errorReason: null,
-        };
-
-        return { response, settlement };
-    }
-
-    // We don't care about caps here; we just want to exercise the x402 path.
-    // So policies can be empty, meaning "always allowed".
-    const x402Http = createGuardedAxios({
-        policies: {},
-        agentId: "x402-demo-agent",
-
-        // We won't use estimateUsdForRequest in this flow;
-        // x402 price is taken from the quote instead.
-        estimateUsdForRequest: undefined,
-
-        facilitatorId: "local-fake-facilitator",
-        selectPaymentOption: selectPaymentOptionStub,
-        estimateUsdFromQuote: estimateUsdFromQuoteStub,
-        payWithX402: payWithX402Stub,
-    });
 
     async function handleX402Call() {
         if (blocked) return;
@@ -107,7 +112,6 @@ export default function X402DemoPage() {
             }
         }
     }
-
 
     return (
         <main className="min-h-screen bg-black text-white flex flex-col items-center gap-6 p-8">
