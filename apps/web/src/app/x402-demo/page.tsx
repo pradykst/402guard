@@ -2,6 +2,13 @@
 
 import { useState } from "react";
 import { createGuardedAxios } from "@402guard/client";
+import {
+    getServiceSpendSummary,
+    getAgentSpendSummary,
+    generateInvoiceCsv,
+} from "@402guard/client";
+
+
 
 type LogEntry = string;
 
@@ -44,6 +51,24 @@ async function payWithX402Stub(args: {
 
     return { response, settlement };
 }
+function handleDownloadInvoice() {
+    const csv = generateInvoiceCsv({
+        store: x402Http.guard.store,
+        agentId: "x402-demo-agent",
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "402guard-x402-invoice.csv";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
 
 // --- guarded client at module scope (store persists across renders) ---
 
@@ -73,6 +98,13 @@ export default function X402DemoPage() {
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [blocked, setBlocked] = useState(false);
     const [callCount, setCallCount] = useState(0);
+    const [serviceSummary, setServiceSummary] = useState<
+        ReturnType<typeof getServiceSpendSummary>
+    >([]);
+    const [agentSummary, setAgentSummary] = useState<
+        ReturnType<typeof getAgentSpendSummary>
+    >([]);
+
 
     async function handleX402Call() {
         if (blocked) return;
@@ -111,6 +143,11 @@ export default function X402DemoPage() {
                 ]);
             }
         }
+        const services = getServiceSpendSummary(x402Http.guard.store);
+        const agents = getAgentSpendSummary(x402Http.guard.store);
+        setServiceSummary(services);
+        setAgentSummary(agents);
+
     }
 
     return (
@@ -133,6 +170,12 @@ export default function X402DemoPage() {
             >
                 {blocked ? "Blocked by policy" : "Call fake402 with 402Guard"}
             </button>
+            <button
+                onClick={handleDownloadInvoice}
+                className="px-4 py-2 rounded-md text-sm font-semibold bg-neutral-700 text-neutral-100 hover:bg-neutral-600"
+            >
+                Download CSV invoice
+            </button>
 
             <div className="mt-4 w-full max-w-xl bg-neutral-900 rounded p-4 text-sm font-mono text-neutral-100">
                 {logs.length === 0 ? (
@@ -140,6 +183,67 @@ export default function X402DemoPage() {
                 ) : (
                     logs.map((l, i) => <div key={i}>{l}</div>)
                 )}
+            </div>
+            <div className="mt-6 w-full max-w-xl grid gap-4">
+                <div className="bg-neutral-900 rounded p-4 text-sm text-neutral-100">
+                    <h2 className="font-semibold mb-2">Service spend summary</h2>
+                    {serviceSummary.length === 0 ? (
+                        <div className="text-neutral-400 text-xs">
+                            No data yet. Make a call to see stats.
+                        </div>
+                    ) : (
+                        <table className="w-full text-xs">
+                            <thead className="text-neutral-400 text-[0.7rem] uppercase">
+                                <tr>
+                                    <th className="text-left pb-1">Service</th>
+                                    <th className="text-right pb-1">Calls</th>
+                                    <th className="text-right pb-1">Total USD</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {serviceSummary.map(row => (
+                                    <tr key={row.serviceId}>
+                                        <td className="py-0.5">{row.serviceId}</td>
+                                        <td className="py-0.5 text-right">{row.count}</td>
+                                        <td className="py-0.5 text-right">
+                                            {row.totalUsd.toFixed(4)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+
+                <div className="bg-neutral-900 rounded p-4 text-sm text-neutral-100">
+                    <h2 className="font-semibold mb-2">Agent spend summary</h2>
+                    {agentSummary.length === 0 ? (
+                        <div className="text-neutral-400 text-xs">
+                            No data yet. Make a call to see stats.
+                        </div>
+                    ) : (
+                        <table className="w-full text-xs">
+                            <thead className="text-neutral-400 text-[0.7rem] uppercase">
+                                <tr>
+                                    <th className="text-left pb-1">Agent</th>
+                                    <th className="text-right pb-1">Calls</th>
+                                    <th className="text-right pb-1">Total USD</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {agentSummary.map(row => (
+                                    <tr key={row.agentId}>
+                                        <td className="py-0.5">{row.agentId}</td>
+                                        <td className="py-0.5 text-right">{row.count}</td>
+                                        <td className="py-0.5 text-right">
+                                            {row.totalUsd.toFixed(4)}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
             </div>
         </main>
     );

@@ -16,6 +16,8 @@ import {
     type ServiceSpendSummary,
     type AgentSpendSummary
 } from "./analytics";
+import { generateInvoiceCsv } from "./invoice";
+
 
 
 // Re-export types so library users can import them from "@402guard/client"
@@ -30,7 +32,9 @@ export type {
     AgentSpendSummary,
 
 };
-export { InMemoryUsageStore, enforcePolicies, getServiceSpendSummary, getAgentSpendSummary };
+export { InMemoryUsageStore, enforcePolicies, getServiceSpendSummary, getAgentSpendSummary, generateInvoiceCsv };
+export type { InvoiceRow } from "./invoice";
+
 
 export type GuardedClientOptions = {
     policies?: PolicyConfig;
