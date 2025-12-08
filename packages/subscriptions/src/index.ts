@@ -27,6 +27,14 @@ export function createSubscriptionAxios(opts: SubscriptionAxiosOptions) {
 }
 
 
+export {
+    isSubscriptionActive,
+    createPlan,
+    subscribeUser,
+    recordOnchainUsage,
+    hashPlanId,
+} from "./chain";
+
 
 // ---------- Invoice model ----------
 

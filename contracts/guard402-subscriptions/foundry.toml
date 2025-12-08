@@ -1,0 +1,13 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc-version = "0.8.24"
+
+[rpc_endpoints]
+fuji = "${AVALANCHE_FUJI_RPC}"
+
+[etherscan]
+fuji = { key = "${SNOWTRACE_API_KEY}" }
+
+
