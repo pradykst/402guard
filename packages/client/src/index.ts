@@ -105,13 +105,6 @@ export type GuardedAxiosOptions = GuardedClientOptions & {
     payWithX402?: PayWithX402Fn;
 };
 
-export function createSubscriptionAxios(options: SubscriptionGuardOptions) {
-    // internally calls createGuardedAxios with:
-    // - a policy that sets global.dailyUsdCap = plan.monthlyUsdCap (or a fraction for demo)
-    // - a store (shared with the rest of the app)
-    // - and automatically injects subscriptionId into UsageContext via a thin wrapper
-}
-
 
 
 
