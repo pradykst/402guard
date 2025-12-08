@@ -270,6 +270,19 @@ export default function SubscriptionsDemoPage() {
                     <pre>{JSON.stringify(lastInvoice, null, 2)}</pre>
                 </div>
             )}
+
+            {/* Raw usage debug (optional for hack demo) */}
+            <div className="mt-4 w-full max-w-2xl bg-neutral-900 rounded p-4 text-xs text-neutral-300 font-mono overflow-x-auto">
+                <div className="font-semibold mb-2">Debug: raw usage records</div>
+                <pre>
+                    {JSON.stringify(
+                        (client.guard.store as any).getRecords?.() ?? [],
+                        null,
+                        2
+                    )}
+                </pre>
+            </div>
+
         </main>
     );
 }

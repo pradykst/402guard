@@ -8,6 +8,12 @@ import {
     generateInvoiceCsv,
 } from "@402guard/client";
 
+import {
+    pickFirstOption,
+    estimateUsdFromQuote,
+    payWithX402Local,
+} from "@402guard/client";
+
 
 
 type LogEntry = string;
@@ -75,22 +81,19 @@ function handleDownloadInvoice() {
 const x402Http = createGuardedAxios({
     policies: {
         services: {
-            // extractServiceIdFromUrl("http://localhost:3000/...") => "localhost"
             "localhost:3000": {
-                dailyUsdCap: 0.03, // three calls at $0.01, then blocked
+                dailyUsdCap: 0.03,
             },
         },
     },
     agentId: "x402-demo-agent",
-
-    // Not used in this flow; price comes from the quote
     estimateUsdForRequest: undefined,
-
     facilitatorId: "local-fake-facilitator",
-    selectPaymentOption: selectPaymentOptionStub,
-    estimateUsdFromQuote: estimateUsdFromQuoteStub,
-    payWithX402: payWithX402Stub,
+    selectPaymentOption: pickFirstOption,
+    estimateUsdFromQuote,
+    payWithX402: payWithX402Local,
 });
+
 
 // --- React component uses the shared client ---
 
