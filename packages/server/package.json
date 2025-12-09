@@ -6,7 +6,9 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
-    "demo": "tsx examples/express-demo.ts"
+    "demo": "DOTENV_CONFIG_PATH=../../.env tsx -r dotenv/config examples/express-demo.ts",
+    "clean": "rimraf dist"
+
   },
   "dependencies": {
     "@402guard/subscriptions": "workspace:*",

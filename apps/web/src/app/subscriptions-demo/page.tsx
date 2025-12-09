@@ -74,7 +74,7 @@ export default function SubscriptionsDemoPage() {
 
     // pick a real Fuji address for the video
     const HARD_CODED_WALLET: `0x${string}` =
-        "0x420AeF56973233F735B9501F234b31ff5c47bE62";
+        process.env.NEXT_PUBLIC_SUBSCRIPTION_DEMO_WALLET as `0x${string}` ?? "0x...";
 
     // this must match whatever you used in createPlan / Foundry script
     const PLAN_ID = "demo-plan";

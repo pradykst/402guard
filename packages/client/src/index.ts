@@ -5,6 +5,7 @@ import {
     UsageContext,
     EnforcementResult
 } from "./types";
+import { PayWithX402Args, PayWithX402Result } from "./x402-thirdweb";
 import { InMemoryUsageStore, UsageStore } from "./store";
 import { enforcePolicies } from "./policies";
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
@@ -109,7 +110,9 @@ export type GuardedAxiosOptions = GuardedClientOptions & {
     facilitatorId?: string;              // label for analytics (e.g. "thirdweb")
     selectPaymentOption?: SelectPaymentOptionFn;
     estimateUsdFromQuote?: EstimateUsdFromQuoteFn;
-    payWithX402?: PayWithX402Fn;
+    payWithX402?: (
+        args: PayWithX402Args,
+    ) => Promise<PayWithX402Result>;
 };
 
 

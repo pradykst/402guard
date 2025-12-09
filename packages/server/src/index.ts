@@ -1,79 +1,95 @@
-// packages/server/src/index.ts
 import type { Request, Response, NextFunction } from "express";
-import { isSubscriptionActive } from "@402guard/subscriptions";
+import {
+    isSubscriptionActive,
+    recordOnchainUsage,
+} from "@402guard/subscriptions";
 
-// Options for the Express middleware
-export type SubscriptionGuardOptions = {
+type RequireSubscriptionOptions = {
     planId: string;
-
-    // Optional: custom way to extract the user address from the request
-    getWalletAddress?(req: Request): string | null;
+    // optional: where to read the user address from
+    addressSource?: "query" | "header";
+    headerName?: string; // used when addressSource === "header"
 };
 
-// Default wallet extractor:
-// - first looks at ?wallet=0x...
-// - then at "x-wallet-address" header
-function defaultGetWalletAddress(req: Request): string | null {
-    const fromQuery = req.query.wallet;
-    if (typeof fromQuery === "string" && fromQuery.startsWith("0x")) {
-        return fromQuery;
-    }
-
-    const fromHeader = req.header("x-wallet-address");
-    if (fromHeader && fromHeader.startsWith("0x")) {
-        return fromHeader;
-    }
-
-    return null;
-}
-
 /**
- * Express middleware factory that checks if a user is subscribed
- * to the given planId using the on chain Guard402Subscriptions contract.
+ * Express middleware that:
+ *  - reads wallet address from request
+ *  - checks Guard402Subscriptions on Fuji
+ *  - optionally records usage on chain
  */
-export function requireSubscription(options: SubscriptionGuardOptions) {
-    const { planId, getWalletAddress = defaultGetWalletAddress } = options;
+export function requireSubscription(
+    opts: RequireSubscriptionOptions,
+) {
+    const {
+        planId,
+        addressSource = "query",
+        headerName = "x-wallet",
+    } = opts;
 
-    return async function subscriptionGuard(
+    return async function guardSubscription(
         req: Request,
         res: Response,
-        next: NextFunction
+        next: NextFunction,
     ) {
         try {
-            const wallet = getWalletAddress(req);
+            let user: string | undefined;
 
-            if (!wallet) {
+            if (addressSource === "query") {
+                user = (req.query.wallet as string | undefined) ?? undefined;
+            } else {
+                user = (req.headers[headerName.toLowerCase()] as string | undefined) ?? undefined;
+            }
+
+            if (!user) {
+                return res.status(401).json({
+                    ok: false,
+                    error: "wallet_missing",
+                    message: "No wallet address provided",
+                });
+            }
+
+            if (!user.startsWith("0x")) {
                 return res.status(400).json({
                     ok: false,
-                    error: "Missing wallet address (?wallet or x-wallet-address header)"
+                    error: "wallet_invalid",
+                    message: "Wallet must be 0x-prefixed",
                 });
             }
 
             const active = await isSubscriptionActive({
-                user: wallet as `0x${string}`,
-                planId
+                user: user as `0x${string}`,
+                planId,
             });
 
             if (!active) {
                 return res.status(402).json({
                     ok: false,
-                    error: "Subscription inactive for this plan",
+                    error: "subscription_inactive",
                     planId,
-                    wallet
+                    message: "Subscription not active for this plan",
                 });
             }
 
-            // All good, continue to the handler
-            return next();
+            // Optional: record small usage for the call
+            try {
+                await recordOnchainUsage({
+                    user: user as `0x${string}`,
+                    planId,
+                    usdAmountMicros: BigInt(1_000), // 0.001 USD for demo
+                });
+            } catch (e) {
+                console.warn("recordOnchainUsage failed", e);
+            }
+
+            // Attach user to request for handlers
+            (req as any).wallet = user;
+            next();
         } catch (err) {
             console.error("requireSubscription error", err);
-            return res.status(500).json({
+            res.status(500).json({
                 ok: false,
-                error: "Internal subscription check error"
+                error: "internal_error",
             });
         }
     };
 }
-
-// Re export the low level helper as well so people can call it directly if needed
-export { isSubscriptionActive };

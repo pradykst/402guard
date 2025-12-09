@@ -1,6 +1,12 @@
 import express from "express";
 import { requireSubscription } from "../src";
 
+
+console.log(
+    "[express-demo] CONTRACT from env:",
+    process.env.NEXT_PUBLIC_GUARD402_SUBSCRIPTIONS
+);
+
 const app = express();
 const port = 4002;
 
@@ -27,6 +33,6 @@ app.get("/health", (_req, res) => {
 app.listen(port, () => {
     console.log(`402Guard server demo listening at http://localhost:${port}`);
     console.log(
-        `Try: curl "http://localhost:${port}/premium-data?wallet=0xyourFujiAddress"`
+        `Try: curl "http://localhost:${port}/premium-data?wallet=${process.env.SUBSCRIPTION_DEMO_WALLET}"`
     );
 });
