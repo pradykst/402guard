@@ -4,9 +4,15 @@
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
-  "type": "module",
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --clean",
-    "clean": "rimraf dist"
+    "demo": "tsx examples/express-demo.ts"
+  },
+  "dependencies": {
+    "@402guard/subscriptions": "workspace:*",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
   }
 }
