@@ -9,6 +9,7 @@ import {
     createSubscriptionAxios,
     generateInvoice,
     type Invoice,
+    getSubscriptionStatus,
 } from "@402guard/subscriptions";
 
 
@@ -66,6 +67,18 @@ export default function SubscriptionsDemoPage() {
         ReturnType<typeof getSubscriptionSpendSummary>
     >([]);
     const [lastInvoice, setLastInvoice] = useState<Invoice | null>(null);
+
+    const [onchainStatus, setOnchainStatus] = useState<{ active: boolean } | null>(
+        null,
+    );
+
+    // pick a real Fuji address for the video
+    const HARD_CODED_WALLET: `0x${string}` =
+        "0x420AeF56973233F735B9501F234b31ff5c47bE62";
+
+    // this must match whatever you used in createPlan / Foundry script
+    const PLAN_ID = "demo-plan";
+
 
     // whenever plan changes, we use the corresponding guarded client
     const client = useMemo(() => getClientForPlan(plan), [plan]);
@@ -212,6 +225,23 @@ export default function SubscriptionsDemoPage() {
                 >
                     Reset subscription analytics
                 </button>
+                <button
+                    onClick={async () => {
+                        try {
+                            const status = await getSubscriptionStatus({
+                                user: HARD_CODED_WALLET,
+                                planId: PLAN_ID,
+                            });
+                            setOnchainStatus(status);
+                        } catch (err) {
+                            console.error("getSubscriptionStatus error", err);
+                        }
+                    }}
+                    className="px-4 py-2 rounded-md text-sm font-semibold bg-purple-500 text-black hover:bg-purple-400"
+                >
+                    Check on chain subscription status
+                </button>
+
 
                 <button
                     onClick={handleDownloadInvoice}
@@ -229,6 +259,7 @@ export default function SubscriptionsDemoPage() {
                     logs.map((l, i) => <div key={i}>{l}</div>)
                 )}
             </div>
+
 
             {/* Subscription spend summary */}
             <div className="mt-6 w-full max-w-2xl bg-neutral-900 rounded p-4 text-sm text-neutral-100">
@@ -260,6 +291,28 @@ export default function SubscriptionsDemoPage() {
                     </table>
                 )}
             </div>
+            {onchainStatus && (
+                <div className="mt-4 w-full max-w-2xl bg-neutral-900 rounded p-4 text-sm text-neutral-100">
+                    <h2 className="font-semibold mb-2">On chain subscription</h2>
+                    <p className="text-xs text-neutral-300 mb-1">
+                        Wallet: {HARD_CODED_WALLET}
+                    </p>
+                    <p className="text-xs text-neutral-300 mb-1">
+                        Plan id: {PLAN_ID}
+                    </p>
+                    <p className="mt-1">
+                        Status:{" "}
+                        <span
+                            className={
+                                onchainStatus.active ? "text-emerald-400" : "text-red-400"
+                            }
+                        >
+                            {onchainStatus.active ? "Active on chain" : "Not active"}
+                        </span>
+                    </p>
+                </div>
+            )}
+
 
             {/* Last invoice preview */}
             {lastInvoice && (

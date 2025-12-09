@@ -60,6 +60,15 @@ export async function isSubscriptionActive(args: {
     }) as Promise<boolean>;
 }
 
+export async function getSubscriptionStatus(args: {
+    user: `0x${string}`;
+    planId: string;
+}): Promise<{ active: boolean }> {
+    const active = await isSubscriptionActive(args);
+    return { active };
+}
+
+
 // ---- Write methods ----
 
 export async function createPlan(args: {
@@ -109,3 +118,5 @@ export async function recordOnchainUsage(args: {
         args: [args.user, planKey, args.usdAmountMicros],
     });
 }
+
+

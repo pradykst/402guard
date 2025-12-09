@@ -33,7 +33,9 @@ export {
     subscribeUser,
     recordOnchainUsage,
     hashPlanId,
+    getSubscriptionStatus,
 } from "./chain";
+
 
 
 // ---------- Invoice model ----------
