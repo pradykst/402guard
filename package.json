@@ -12,7 +12,8 @@
     "build:server": "cd packages/server && bun run build",
     "build:subs": "cd packages/subscriptions && bun run build",
     "build": "bun run build:client && bun run build:server && bun run build:subs",
-    "dev:web": "cd apps/web && bun dev"
+    "dev:web": "cd apps/web && bun dev",
+    "seed:subscriptions": "tsx scripts/seed-subscriptions-demo.ts"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -20,5 +21,8 @@
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3"
   }
 }

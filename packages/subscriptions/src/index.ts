@@ -34,7 +34,10 @@ export {
     recordOnchainUsage,
     hashPlanId,
     getSubscriptionStatus,
+    subscriptionsClient
 } from "./chain";
+
+
 
 
 
