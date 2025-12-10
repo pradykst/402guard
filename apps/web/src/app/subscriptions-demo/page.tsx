@@ -11,21 +11,25 @@ import {
     type Invoice,
     getSubscriptionStatus,
 } from "@402guard/subscriptions";
+import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
 
 
 type PlanId = "starter" | "pro";
 
 const PLANS: Record<
     PlanId,
-    { label: string; dailyCap: number; subscriptionId: string }
+    { label: string; dailyCap: number; subscriptionId: string; description: string }
 > = {
     starter: {
-        label: "Starter • $0.03/day cap",
+        label: "Starter",
+        description: "$0.03/day cap",
         dailyCap: 0.03,
         subscriptionId: "sub-starter",
     },
     pro: {
-        label: "Pro • $0.10/day cap",
+        label: "Pro",
+        description: "$0.10/day cap",
         dailyCap: 0.1,
         subscriptionId: "sub-pro",
     },
@@ -82,11 +86,17 @@ export default function SubscriptionsDemoPage() {
 
     // whenever plan changes, we use the corresponding guarded client
     const client = useMemo(() => getClientForPlan(plan), [plan]);
+
+    // Get current plan stats
+    const currentPlanConfig = PLANS[plan];
+    const currentStats = subSummary.find(s => s.subscriptionId === currentPlanConfig.subscriptionId) || { count: 0, totalUsd: 0 };
+    const remainingBudget = Math.max(0, currentPlanConfig.dailyCap - currentStats.totalUsd);
+
     async function handleCall() {
         if (blocked) return;
 
         const nextCall = callCount + 1;
-        setLogs(prev => [...prev, `Call ${nextCall}: starting...`]);
+        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Call ${nextCall}: starting...`]);
 
         try {
             const res = await client.guardedRequest({
@@ -96,7 +106,7 @@ export default function SubscriptionsDemoPage() {
 
             setLogs(prev => [
                 ...prev,
-                `Call ${nextCall}: OK (status ${res.status})`,
+                `[${new Date().toLocaleTimeString()}] Call ${nextCall}: OK (status ${res.status})`,
             ]);
             setCallCount(nextCall);
         } catch (err: any) {
@@ -108,13 +118,13 @@ export default function SubscriptionsDemoPage() {
 
                 setLogs(prev => [
                     ...prev,
-                    `Call ${nextCall}: BLOCKED - ${reason}`,
+                    `[${new Date().toLocaleTimeString()}] Call ${nextCall}: BLOCKED - ${reason}`,
                 ]);
                 setBlocked(true);
             } else {
                 setLogs(prev => [
                     ...prev,
-                    `Call ${nextCall}: ERROR - ${String(err)}`,
+                    `[${new Date().toLocaleTimeString()}] Call ${nextCall}: ERROR - ${String(err)}`,
                 ]);
             }
         }
@@ -137,7 +147,7 @@ export default function SubscriptionsDemoPage() {
         setLastInvoice(null);
     }
 
-    function handleDownloadInvoice() {
+    async function handleDownloadInvoice() {
         const cfg = PLANS[plan];
         const store = client.guard.store as UsageStore;
 
@@ -156,186 +166,241 @@ export default function SubscriptionsDemoPage() {
 
         setLastInvoice(invoice);
 
-        const blob = new Blob(
-            [JSON.stringify(invoice, null, 2)],
-            { type: "application/json" },
-        );
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `invoice-${cfg.subscriptionId}-${todayStart
-            .toISOString()
-            .slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
+        // Dynamically import jspdf to avoid SSR issues
+        const jsPDF = (await import("jspdf")).default;
+        const autoTable = (await import("jspdf-autotable")).default;
+
+        const doc = new jsPDF();
+
+        // -- Header --
+        doc.setFontSize(22);
+        doc.setTextColor(40, 40, 40);
+        doc.text("INVOICE", 14, 22);
+
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text("402Guard Demo", 14, 30);
+        doc.text("Avalanche Fuji", 14, 35);
+
+        // -- Invoice Details --
+        const rightX = 140;
+        doc.setFontSize(10);
+        doc.text(`Date: ${new Date().toLocaleDateString()}`, rightX, 30);
+        doc.text(`Invoice #: ${Math.floor(Math.random() * 10000)}`, rightX, 35);
+        doc.text(`Subscription: ${cfg.label} Plan`, rightX, 40);
+        doc.text(`Wallet: ${HARD_CODED_WALLET.slice(0, 6)}...${HARD_CODED_WALLET.slice(-4)}`, rightX, 45);
+
+        // -- Bill To (Abstract) --
+        doc.text("Bill To:", 14, 55);
+        doc.setFont("helvetica", "bold");
+        doc.text("Demo User", 14, 60);
+        doc.setFont("helvetica", "normal");
+        doc.text(HARD_CODED_WALLET, 14, 65);
+
+        // -- Line Items --
+        const tableData = invoice.lines.map(line => [
+            line.serviceId,
+            line.count.toString(),
+            `$${line.totalUsd.toFixed(4)}`
+        ]);
+
+        autoTable(doc, {
+            head: [["Service", "Requests", "Amount (USD)"]],
+            body: tableData,
+            startY: 75,
+            theme: 'grid',
+            headStyles: { fillColor: [66, 66, 66] },
+            styles: { fontSize: 10, cellPadding: 3 },
+        });
+
+        // -- Total --
+        const finalY = (doc as any).lastAutoTable.finalY + 10;
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Total: $${invoice.totalUsd.toFixed(4)}`, 140, finalY);
+
+        // -- Footer --
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(150);
+        doc.text("Thank you for using 402Guard on Avalanche Fuji.", 14, 280);
+
+        // Save
+        doc.save(`invoice-${cfg.subscriptionId}.pdf`);
     }
 
 
     return (
-        <main className="min-h-screen bg-black text-white flex flex-col items-center gap-6 p-8">
-            <h1 className="text-3xl font-bold">402Guard subscriptions demo</h1>
+        <div className="space-y-8">
+            <header className="flex flex-col gap-2 border-b border-zinc-800 pb-8">
+                <div className="flex items-center gap-4">
+                    <h1 className="text-3xl font-bold text-white">402Guard Subscriptions Demo</h1>
+                    <span className="px-3 py-1 bg-blue-600 rounded-full text-xs font-bold text-white uppercase tracking-wider">
+                        {PLANS[plan].label} Plan Selected
+                    </span>
+                </div>
+                <p className="text-zinc-400 max-w-2xl text-lg">
+                    Pick a plan, make guarded API calls on that subscription, see daily caps
+                    enforced, and download a JSON invoice for today&apos;s usage.
+                </p>
+            </header>
 
-            <p className="text-gray-300 text-center max-w-2xl">
-                Pick a plan, make guarded API calls on that subscription, see daily caps
-                enforced, and download a JSON invoice for today&apos;s usage.
-            </p>
-
-            {/* Plan picker */}
-            <div className="flex gap-3">
-                {Object.entries(PLANS).map(([id, cfg]) => (
-                    <button
-                        key={id}
-                        onClick={() => {
-                            setPlan(id as PlanId);
-                            setBlocked(false);
-                            setCallCount(0);
-                            setLogs([]);
-                            setLastInvoice(null);
-                        }}
-                        className={`px-4 py-2 rounded-md text-sm font-semibold border ${plan === id
-                            ? "bg-emerald-500 text-black border-emerald-400"
-                            : "bg-neutral-900 text-neutral-100 border-neutral-700"
-                            }`}
-                    >
-                        {cfg.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-3">
-                <button
-                    onClick={handleCall}
-                    disabled={blocked}
-                    className={`px-4 py-2 rounded-md text-sm font-semibold ${blocked
-                        ? "bg-gray-600 text-gray-300 cursor-not-allowed"
-                        : "bg-emerald-500 text-black hover:bg-emerald-400"
-                        }`}
-                >
-                    {blocked
-                        ? "Limit reached for this subscription"
-                        : "Make guarded API call"}
-                </button>
-
-                <button
-                    onClick={handleReset}
-                    className="px-4 py-2 rounded-md text-sm font-semibold bg-neutral-700 text-neutral-100 hover:bg-neutral-600"
-                >
-                    Reset subscription analytics
-                </button>
-                <button
-                    onClick={async () => {
-                        try {
-                            const status = await getSubscriptionStatus({
-                                user: HARD_CODED_WALLET,
-                                planId: PLAN_ID,
-                            });
-                            setOnchainStatus(status);
-                        } catch (err) {
-                            console.error("getSubscriptionStatus error", err);
-                        }
-                    }}
-                    className="px-4 py-2 rounded-md text-sm font-semibold bg-purple-500 text-black hover:bg-purple-400"
-                >
-                    Check on chain subscription status
-                </button>
-
-
-                <button
-                    onClick={handleDownloadInvoice}
-                    className="px-4 py-2 rounded-md text-sm font-semibold bg-sky-600 text-black hover:bg-sky-500"
-                >
-                    Download invoice (today)
-                </button>
-            </div>
-
-            {/* Logs */}
-            <div className="mt-4 w-full max-w-2xl bg-neutral-900 rounded p-4 text-sm font-mono text-neutral-100">
-                {logs.length === 0 ? (
-                    <div>No calls yet</div>
-                ) : (
-                    logs.map((l, i) => <div key={i}>{l}</div>)
-                )}
-            </div>
-
-
-            {/* Subscription spend summary */}
-            <div className="mt-6 w-full max-w-2xl bg-neutral-900 rounded p-4 text-sm text-neutral-100">
-                <h2 className="font-semibold mb-2">Subscription spend summary</h2>
-                {subSummary.length === 0 ? (
-                    <div className="text-neutral-400 text-xs">
-                        No data yet. Make a call to see stats.
-                    </div>
-                ) : (
-                    <table className="w-full text-xs">
-                        <thead className="text-neutral-400 text-[0.7rem] uppercase">
-                            <tr>
-                                <th className="text-left pb-1">Subscription</th>
-                                <th className="text-right pb-1">Calls</th>
-                                <th className="text-right pb-1">Total USD</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {subSummary.map(row => (
-                                <tr key={row.subscriptionId}>
-                                    <td className="py-0.5">{row.subscriptionId}</td>
-                                    <td className="py-0.5 text-right">{row.count}</td>
-                                    <td className="py-0.5 text-right">
-                                        {row.totalUsd.toFixed(4)}
-                                    </td>
-                                </tr>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-8">
+                    {/* Plan Selector */}
+                    <section>
+                        <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-4">Select Plan</h2>
+                        <div className="grid grid-cols-2 gap-4">
+                            {Object.entries(PLANS).map(([id, cfg]) => (
+                                <button
+                                    key={id}
+                                    onClick={() => {
+                                        setPlan(id as PlanId);
+                                        setBlocked(false);
+                                        setCallCount(0);
+                                        setLogs([]);
+                                        setLastInvoice(null);
+                                    }}
+                                    className={`
+                                        text-left p-4 rounded-lg border-2 transition-all
+                                        ${plan === id
+                                            ? "bg-blue-600/10 border-blue-600"
+                                            : "bg-zinc-900 border-zinc-800 hover:border-zinc-700"}
+                                    `}
+                                >
+                                    <div className={`font-bold ${plan === id ? "text-blue-400" : "text-white"}`}>{cfg.label}</div>
+                                    <div className="text-zinc-400 text-sm">{cfg.description}</div>
+                                </button>
                             ))}
-                        </tbody>
-                    </table>
+                        </div>
+                    </section>
+
+                    {/* Actions */}
+                    <section className="space-y-4">
+                        <h2 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Actions</h2>
+
+                        <Card title="Simulate Traffic">
+                            <div className="flex flex-col gap-4">
+                                <Button
+                                    onClick={handleCall}
+                                    disabled={blocked}
+                                    variant={blocked ? "secondary" : "primary"}
+                                    className="w-full text-lg h-12"
+                                >
+                                    {blocked ? "Limit Reached (Blocked)" : "Make Guarded API Call ($0.01)"}
+                                </Button>
+                                <Button onClick={handleReset} variant="outline" size="sm" className="w-full">
+                                    Reset Local Analytics
+                                </Button>
+                            </div>
+                        </Card>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Button
+                                onClick={async () => {
+                                    try {
+                                        const status = await getSubscriptionStatus({
+                                            user: HARD_CODED_WALLET,
+                                            planId: PLAN_ID,
+                                        });
+                                        setOnchainStatus(status);
+                                    } catch (err) {
+                                        console.error("getSubscriptionStatus error", err);
+                                    }
+                                }}
+                                variant="secondary"
+                                className="w-full"
+                            >
+                                Check Chain Status
+                            </Button>
+                            <Button
+                                onClick={handleDownloadInvoice}
+                                variant="secondary"
+                                className="w-full"
+                            >
+                                Download PDF Invoice
+                            </Button>
+                        </div>
+                    </section>
+                </div>
+
+                <div className="space-y-8">
+                    {/* Spend Summary */}
+                    <Card title="Live Spend Summary">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800">
+                                <div className="text-2xl font-mono text-white">{currentStats.count}</div>
+                                <div className="text-xs text-zinc-400 uppercase mt-1">Total Requests</div>
+                            </div>
+                            <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800">
+                                <div className="text-2xl font-mono text-white">${currentStats.totalUsd.toFixed(2)}</div>
+                                <div className="text-xs text-zinc-400 uppercase mt-1">Total Spent</div>
+                            </div>
+                            <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800">
+                                <div className="text-2xl font-mono text-zinc-400">${currentPlanConfig.dailyCap.toFixed(2)}</div>
+                                <div className="text-xs text-zinc-500 uppercase mt-1">Daily Cap</div>
+                            </div>
+                            <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800">
+                                <div className={`text-2xl font-mono ${remainingBudget < 0.01 ? "text-red-400" : "text-green-400"}`}>
+                                    ${remainingBudget.toFixed(2)}
+                                </div>
+                                <div className="text-xs text-zinc-500 uppercase mt-1">Remaining Budget</div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Console Output */}
+                    <div className="rounded-xl border border-zinc-800 bg-[#0c0c0c] overflow-hidden flex flex-col min-h-[300px]">
+                        <div className="bg-zinc-900 px-4 py-2 border-b border-zinc-800 text-xs text-zinc-500 uppercase tracking-widest font-semibold">
+                            System Events
+                        </div>
+                        <div className="p-4 overflow-auto font-mono text-xs flex-1 space-y-2">
+                            {logs.length === 0 ? (
+                                <div className="text-zinc-600">// Ready...</div>
+                            ) : (
+                                logs.map((l, i) => (
+                                    <div key={i} className={l.includes("BLOCKED") ? "text-red-400" : l.includes("ERROR") ? "text-red-400" : "text-green-400"}>
+                                        {l}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Extra Output */}
+            <div className="grid md:grid-cols-2 gap-8">
+                {onchainStatus && (
+                    <Card title="On Chain Status">
+                        <div className="space-y-2 text-sm">
+                            <div className="flex justify-between border-b border-zinc-800 pb-2">
+                                <span className="text-zinc-500">Wallet</span>
+                                <span className="font-mono text-zinc-300">{HARD_CODED_WALLET.slice(0, 10)}...</span>
+                            </div>
+                            <div className="flex justify-between border-b border-zinc-800 pb-2">
+                                <span className="text-zinc-500">Plan ID</span>
+                                <span className="font-mono text-zinc-300">{PLAN_ID}</span>
+                            </div>
+                            <div className="flex justify-between pt-2">
+                                <span className="text-zinc-500">Status</span>
+                                <span className={`font-bold ${onchainStatus.active ? "text-green-400" : "text-red-400"}`}>
+                                    {onchainStatus.active ? "ACTIVE" : "INACTIVE"}
+                                </span>
+                            </div>
+                        </div>
+                    </Card>
+                )}
+
+                {lastInvoice && (
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 overflow-hidden">
+                        <h3 className="text-sm font-semibold text-zinc-400 mb-2">Invoice Preview</h3>
+                        <pre className="text-xs text-zinc-300 font-mono overflow-auto max-h-40">
+                            {JSON.stringify(lastInvoice, null, 2)}
+                        </pre>
+                    </div>
                 )}
             </div>
-            {onchainStatus && (
-                <div className="mt-4 w-full max-w-2xl bg-neutral-900 rounded p-4 text-sm text-neutral-100">
-                    <h2 className="font-semibold mb-2">On chain subscription</h2>
-                    <p className="text-xs text-neutral-300 mb-1">
-                        Wallet: {HARD_CODED_WALLET}
-                    </p>
-                    <p className="text-xs text-neutral-300 mb-1">
-                        Plan id: {PLAN_ID}
-                    </p>
-                    <p className="mt-1">
-                        Status:{" "}
-                        <span
-                            className={
-                                onchainStatus.active ? "text-emerald-400" : "text-red-400"
-                            }
-                        >
-                            {onchainStatus.active ? "Active on chain" : "Not active"}
-                        </span>
-                    </p>
-                </div>
-            )}
-
-
-            {/* Last invoice preview */}
-            {lastInvoice && (
-                <div className="mt-4 w-full max-w-2xl bg-neutral-900 rounded p-4 text-xs text-neutral-200 font-mono overflow-x-auto max-h-64">
-                    <div className="font-semibold mb-2">
-                        Last generated invoice (preview)
-                    </div>
-                    <pre>{JSON.stringify(lastInvoice, null, 2)}</pre>
-                </div>
-            )}
-
-            {/* Raw usage debug (optional for hack demo) */}
-            <div className="mt-4 w-full max-w-2xl bg-neutral-900 rounded p-4 text-xs text-neutral-300 font-mono overflow-x-auto">
-                <div className="font-semibold mb-2">Debug: raw usage records</div>
-                <pre>
-                    {JSON.stringify(
-                        (client.guard.store as any).getRecords?.() ?? [],
-                        null,
-                        2
-                    )}
-                </pre>
-            </div>
-
-        </main>
+        </div>
     );
 }
