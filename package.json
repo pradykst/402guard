@@ -23,6 +23,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "thirdweb": "^5.115.4"
   }
 }

@@ -12,7 +12,8 @@
     "@402guard/client": "workspace:*",
     "next": "16.0.6",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "thirdweb": "^5.115.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

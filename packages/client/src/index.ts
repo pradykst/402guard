@@ -43,6 +43,7 @@ export {
     estimateUsdFromQuote,
     payWithX402Local,
     payWithX402Avalanche,
+    payWithX402Thirdweb,
 } from "./x402";
 
 
