@@ -37,9 +37,10 @@ export function createThirdwebPayWithX402(opts: {
 }) {
     const { facilitatorBaseUrl, apiKey, payerAddress, chainId } = opts;
 
-    if (!facilitatorBaseUrl) {
-        throw new Error("THIRDWEB_X402_FACILITATOR_URL missing");
-    }
+    // Optional label, only for logs/analytics
+    const FACILITATOR_URL =
+        process.env.THIRDWEB_X402_FACILITATOR_URL ?? "thirdweb-facilitator";
+
 
     return async function payWithX402Thirdweb(
         args: PayWithX402Args
