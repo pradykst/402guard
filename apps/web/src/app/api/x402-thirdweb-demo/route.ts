@@ -41,7 +41,7 @@ export async function GET(request: Request) {
 
         // Call settlePayment
         const result = await settlePayment({
-            client,
+
             resourceUrl,
             method: "GET",
             paymentData,
