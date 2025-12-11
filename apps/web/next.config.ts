@@ -1,23 +1,12 @@
 import type { NextConfig } from "next";
 
+import path from "path";
+
 const nextConfig: NextConfig = {
-  experimental: {
-    // @ts-expect-error - turbo is valid but might not be in the types yet
-    turbo: {
-      resolveAlias: {
-        "thread-stream/test": "false",
-        "thread-stream/benchmarks": "false",
-      },
-      // @ts-ignore
-      rules: {
-        "*.test.js": ["null-loader"],
-      }
-    },
-  },
   webpack(config) {
     config.module.rules.push({
-      test: /node_modules[\\/](thread-stream|pino)[\\/](test|benchmarks)[\\/].*\.(js|ts|mjs)$/,
-      use: "null-loader",
+      test: /[\\/]node_modules[\\/](thread-stream|pino)[\\/](test|benchmarks|examples)[\\/]/,
+      loader: path.resolve(__dirname, "ignore-loader.js"),
     });
     return config;
   },
