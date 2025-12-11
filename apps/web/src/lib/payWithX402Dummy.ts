@@ -18,17 +18,23 @@ export function createThirdwebPayWithX402(config?: { clientId?: string }): (args
             // quote contains: { payTo, ... }
 
             // 1. Determine Payment Details
-            const chain = option.network; // Object with chainId
-            const to = quote.payTo || option.to;
+            // option.network is string (e.g. "43113" or "avalanche-fuji"). 
+            // We assume it can be parsed as a number for defineChain, or is a known slug. 
+            // For safety in this dummy, we'll try to parse it or default to a known chain if needed.
+            // But defineChain takes a number.
+            const chainId = Number(option.network);
+            const chain = { id: isNaN(chainId) ? 43113 : chainId, rpc: "https://rpc.ankr.com/avalanche_fuji" } as any;
+            // Note: In real app, use defineChain or a map. casting any to bypass strict check for now.
+
+            const to = option.payTo;
 
             // Amount: prefer simple value if available, else try to parse.
             // 402Guard quotes typically have `price` or `estimatedPrice` (string or number).
-            // Option often has `value` (wei) or `amount` (human readable).
+            // X402AcceptOption has `maxAmountRequired` (string).
 
-            // We'll rely on what's in 'option' if possible, as it's the "selected" option.
-            const value = option.value || option.amount || quote.price;
-            const isNative = !option.asset || option.asset.address === "0x0000000000000000000000000000000000000000";
-            const tokenAddress = option.asset?.address;
+            const value = option.maxAmountRequired;
+            const isNative = !option.asset || option.asset === "0x0000000000000000000000000000000000000000";
+            const tokenAddress = option.asset;
 
             // 2. Prepare Transaction using 'thirdweb' core
             let transaction;
