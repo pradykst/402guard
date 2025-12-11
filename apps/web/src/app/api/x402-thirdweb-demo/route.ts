@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createThirdwebClient } from "thirdweb";
 import { facilitator, settlePayment } from "thirdweb/x402";
-import { avalancheFuji } from "thirdweb/chains";
+import { arbitrumSepolia } from "thirdweb/chains";
 
 export async function GET(request: Request) {
     try {
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
             resourceUrl,
             method: "GET",
             paymentData,
-            network: avalancheFuji,
+            network: arbitrumSepolia,
             price: PRICE_USD,
             facilitator: thirdwebFacilitator,
             routeConfig: {

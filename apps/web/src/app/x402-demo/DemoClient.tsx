@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { ThirdwebProvider, ConnectButton, useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { createBrowserThirdwebClient } from "@/lib/thirdwebClient";
 import { createPayWithX402Thirdweb, createGuardedAxios, getAgentSpendSummary, type UsageStore, type PolicyConfig } from "@402guard/client";
-import { avalancheFuji } from "thirdweb/chains";
+import { arbitrumSepolia } from "thirdweb/chains";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { CodeBlock } from "@/components/CodeBlock";
@@ -44,14 +44,11 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
     // 1. Build PolicyConfig based on sessionCapUsd
     const policies: PolicyConfig = useMemo(
         () => ({
-            budgets: [
-                {
-                    id: "x402-session-cap",
-                    scope: { agentId },
-                    windowMs: 24 * 60 * 60 * 1000, // 24h rolling
-                    maxUsdCents: Math.round(sessionCapUsd * 100),
+            agents: {
+                [agentId]: {
+                    dailyUsdCap: sessionCapUsd,
                 },
-            ],
+            },
         }),
         [sessionCapUsd, agentId],
     );
@@ -80,9 +77,8 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
         if (!guardedAxios.guard) return;
         const store = guardedAxios.guard.store as UsageStore;
         // The store is synchronous in memory
-        const summary = getAgentSpendSummary(store, { agentId });
-        // summary is an array, we take the first or default
-        const s = summary[0] ?? { totalUsd: 0, count: 0 };
+        const all = getAgentSpendSummary(store);
+        const s = all.find(a => a.agentId === agentId) ?? { totalUsd: 0, count: 0 };
         setSpendSummary(s);
     }
 
@@ -208,7 +204,7 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
                                 <div className="flex justify-between items-center bg-zinc-900 p-4 rounded-lg border border-zinc-800">
                                     <span className="text-sm text-zinc-400">Wallet Status</span>
                                     <div>
-                                        <ConnectButton client={client} chain={avalancheFuji} theme="dark" />
+                                        <ConnectButton client={client} chain={arbitrumSepolia} theme="dark" />
                                     </div>
                                 </div>
 

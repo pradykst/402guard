@@ -3,6 +3,7 @@ import type {
     AxiosInstance,
     AxiosRequestConfig,
     AxiosResponse,
+    InternalAxiosRequestConfig,
 } from "axios";
 import type {
     X402Quote,
@@ -108,7 +109,7 @@ export function createPayWithX402Thirdweb(params?: {
             status: res.status,
             statusText: res.statusText,
             headers: Object.fromEntries(res.headers.entries()),
-            config: originalConfig,
+            config: originalConfig as InternalAxiosRequestConfig,
             request: {},
         };
 
