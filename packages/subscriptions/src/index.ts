@@ -34,7 +34,8 @@ export {
     recordOnchainUsage,
     hashPlanId,
     getSubscriptionStatus,
-    subscriptionsClient
+    subscriptionsClient,
+    Guard402SubscriptionsAbi
 } from "./chain";
 
 

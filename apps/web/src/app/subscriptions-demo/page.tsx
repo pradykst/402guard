@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ThirdwebProvider, useActiveAccount } from "thirdweb/react";
 import {
     getSubscriptionSpendSummary,
     type UsageStore,
@@ -13,6 +14,7 @@ import {
 } from "@402guard/subscriptions";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { OnchainSubscriptionCard } from "@/components/OnchainSubscriptionCard";
 
 
 type PlanId = "starter" | "pro";
@@ -63,6 +65,14 @@ function getClientForPlan(plan: PlanId) {
 
 
 export default function SubscriptionsDemoPage() {
+    return (
+        <ThirdwebProvider>
+            <SubscriptionsDemoContent />
+        </ThirdwebProvider>
+    );
+}
+
+function SubscriptionsDemoContent() {
     const [plan, setPlan] = useState<PlanId>("starter");
     const [logs, setLogs] = useState<string[]>([]);
     const [blocked, setBlocked] = useState(false);
@@ -72,13 +82,10 @@ export default function SubscriptionsDemoPage() {
     >([]);
     const [lastInvoice, setLastInvoice] = useState<Invoice | null>(null);
 
-    const [onchainStatus, setOnchainStatus] = useState<{ active: boolean } | null>(
-        null,
-    );
-
-    // pick a real Fuji address for the video
-    const HARD_CODED_WALLET: `0x${string}` =
-        process.env.NEXT_PUBLIC_SUBSCRIPTION_DEMO_WALLET as `0x${string}` ?? "0x...";
+    const account = useActiveAccount();
+    const connectedWallet = account?.address as `0x${string}` | undefined;
+    const fallbackWallet = process.env.NEXT_PUBLIC_SUBSCRIPTION_DEMO_WALLET as `0x${string}` ?? "0x0000000000000000000000000000000000000000";
+    const displayWallet = connectedWallet ?? fallbackWallet;
 
     // this must match whatever you used in createPlan / Foundry script
     const PLAN_ID = "demo-plan";
@@ -188,14 +195,14 @@ export default function SubscriptionsDemoPage() {
         doc.text(`Date: ${new Date().toLocaleDateString()}`, rightX, 30);
         doc.text(`Invoice #: ${Math.floor(Math.random() * 10000)}`, rightX, 35);
         doc.text(`Subscription: ${cfg.label} Plan`, rightX, 40);
-        doc.text(`Wallet: ${HARD_CODED_WALLET.slice(0, 6)}...${HARD_CODED_WALLET.slice(-4)}`, rightX, 45);
+        doc.text(`Wallet: ${displayWallet.slice(0, 6)}...${displayWallet.slice(-4)}`, rightX, 45);
 
         // -- Bill To (Abstract) --
         doc.text("Bill To:", 14, 55);
         doc.setFont("helvetica", "bold");
         doc.text("Demo User", 14, 60);
         doc.setFont("helvetica", "normal");
-        doc.text(HARD_CODED_WALLET, 14, 65);
+        doc.text(displayWallet, 14, 65);
 
         // -- Line Items --
         const tableData = invoice.lines.map(line => [
@@ -297,29 +304,15 @@ export default function SubscriptionsDemoPage() {
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <Button
-                                onClick={async () => {
-                                    try {
-                                        const status = await getSubscriptionStatus({
-                                            user: HARD_CODED_WALLET,
-                                            planId: PLAN_ID,
-                                        });
-                                        setOnchainStatus(status);
-                                    } catch (err) {
-                                        console.error("getSubscriptionStatus error", err);
-                                    }
-                                }}
-                                variant="secondary"
-                                className="w-full"
-                            >
-                                Check Chain Status
-                            </Button>
-                            <Button
                                 onClick={handleDownloadInvoice}
                                 variant="secondary"
-                                className="w-full"
+                                className="w-full col-span-2"
                             >
                                 Download PDF Invoice
                             </Button>
+                        </div>
+                        <div className="mt-8">
+                            <OnchainSubscriptionCard defaultPlanId={PLAN_ID} />
                         </div>
                     </section>
                 </div>
@@ -371,26 +364,6 @@ export default function SubscriptionsDemoPage() {
 
             {/* Extra Output */}
             <div className="grid md:grid-cols-2 gap-8">
-                {onchainStatus && (
-                    <Card title="On Chain Status">
-                        <div className="space-y-2 text-sm">
-                            <div className="flex justify-between border-b border-zinc-800 pb-2">
-                                <span className="text-zinc-500">Wallet</span>
-                                <span className="font-mono text-zinc-300">{HARD_CODED_WALLET.slice(0, 10)}...</span>
-                            </div>
-                            <div className="flex justify-between border-b border-zinc-800 pb-2">
-                                <span className="text-zinc-500">Plan ID</span>
-                                <span className="font-mono text-zinc-300">{PLAN_ID}</span>
-                            </div>
-                            <div className="flex justify-between pt-2">
-                                <span className="text-zinc-500">Status</span>
-                                <span className={`font-bold ${onchainStatus.active ? "text-green-400" : "text-red-400"}`}>
-                                    {onchainStatus.active ? "ACTIVE" : "INACTIVE"}
-                                </span>
-                            </div>
-                        </div>
-                    </Card>
-                )}
 
                 {lastInvoice && (
                     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 overflow-hidden">

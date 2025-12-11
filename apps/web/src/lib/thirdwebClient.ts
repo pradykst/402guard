@@ -16,3 +16,5 @@ export function createBrowserThirdwebClient(clientId?: string) {
         clientId: finalClientId || "", // prevent crash, though it will fail calls
     });
 }
+
+export const client = createBrowserThirdwebClient();
