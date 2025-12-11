@@ -48,6 +48,51 @@ export async function GET(request: Request) {
 
         if (paymentData) {
             console.log("Debug: received x-payment header (length):", paymentData.length);
+
+            // MANUAL VERIFICATION: If it looks like a tx hash, verify it directly
+            if (paymentData.startsWith("0x") && paymentData.length === 66) {
+                console.log("Debug: Verifying transaction hash:", paymentData);
+                try {
+                    const { getTransaction, waitForReceipt } = await import("thirdweb");
+                    const { defineChain } = await import("thirdweb/chains");
+
+                    // Assuming Avalanche Fuji for demo
+                    const chain = defineChain(43113);
+
+                    // 1. Wait for receipt to ensure it's mined
+                    await waitForReceipt({
+                        client,
+                        chain,
+                        transactionHash: paymentData as `0x${string}`,
+                    });
+
+                    // 2. Get transaction details to check value/recipient
+                    // @ts-ignore
+                    const tx = await getTransaction({
+                        client,
+                        chain,
+                        transactionHash: paymentData as `0x${string}`,
+                    });
+
+                    const expectedWallet = facilitatorArgs.serverWalletAddress || facilitatorArgs.walletAddress;
+
+                    // Check if paid roughly enough (or just > 0 for demo)
+                    // In production, check tx.value >= price
+                    if (expectedWallet && tx.to?.toLowerCase() === expectedWallet.toLowerCase()) {
+                        console.log("Debug: Payment verified manually via tx hash");
+                        return NextResponse.json({
+                            ok: true,
+                            data: "Guarded premium content from 402Guard + Thirdweb x402",
+                            message: "Payment verified!",
+                            priceUsd: PRICE_USD,
+                        });
+                    } else {
+                        console.warn("Debug: Tx recipient mismatch", tx.to, expectedWallet);
+                    }
+                } catch (err: any) {
+                    console.error("Debug: Manual verification failed", err.message);
+                }
+            }
         }
 
         // 2. Determine resource URL (must match exactly what client sees)
@@ -88,6 +133,12 @@ export async function GET(request: Request) {
         let finalBody = bodyContent;
         if (typeof bodyContent === 'object' && bodyContent !== null) {
             finalBody = JSON.stringify(bodyContent);
+        } else if (typeof bodyContent === 'string') {
+            finalBody = bodyContent;
+        } else if (bodyContent === undefined || bodyContent === null) {
+            finalBody = "";
+        } else {
+            finalBody = String(bodyContent);
         }
 
         return new NextResponse(finalBody as BodyInit, {

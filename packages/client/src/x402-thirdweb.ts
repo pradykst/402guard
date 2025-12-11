@@ -9,6 +9,15 @@ import type {
     X402AcceptOption,
     X402SettlementMeta,
 } from "./types";
+import {
+    ThirdwebClient,
+    prepareTransaction,
+    sendTransaction,
+    waitForReceipt,
+} from "thirdweb";
+import { Account, Wallet } from "thirdweb/wallets";
+import { defineChain } from "thirdweb/chains";
+import { transfer } from "thirdweb/extensions/erc20";
 
 // These are the shapes your guarded client expects
 export type PayWithX402Args = {
@@ -16,6 +25,9 @@ export type PayWithX402Args = {
     option: X402AcceptOption;
     originalConfig: AxiosRequestConfig;
     axiosInstance: AxiosInstance;
+    // We need the account to sign!
+    account?: Account;
+    wallet?: Wallet;
 };
 
 export type PayWithX402Result = {
@@ -25,76 +37,117 @@ export type PayWithX402Result = {
 
 /**
  * Factory that returns a payWithX402 function backed by Thirdweb's
- * x402 facilitator.
- *
- * All Thirdweb-specific config lives in this closure.
+ * x402 client SDK.
  */
 export function createThirdwebPayWithX402(opts: {
-    facilitatorBaseUrl: string;      // e.g. https://x402.thirdweb.xyz  (placeholder)
-    apiKey?: string;                 // if Thirdweb requires auth
-    payerAddress: `0x${string}`;     // wallet that actually pays
-    chainId: number;                 // 43113 for Fuji
+    client: ThirdwebClient;
+    account?: Account; // Global default account if usually single user
+    recipientAddress?: string; // Fallback recipient if quote is missing it
 }) {
-    const { facilitatorBaseUrl, apiKey, payerAddress, chainId } = opts;
-
-    // Optional label, only for logs/analytics
-    const FACILITATOR_URL =
-        process.env.THIRDWEB_X402_FACILITATOR_URL ?? "thirdweb-facilitator";
-
+    const { client, account: defaultAccount, recipientAddress } = opts;
 
     return async function payWithX402Thirdweb(
         args: PayWithX402Args
     ): Promise<PayWithX402Result> {
-        const { quote, option, originalConfig, axiosInstance } = args;
+        const { quote, option, originalConfig, axiosInstance, account: argAccount } = args;
 
-        // 1) Ask Thirdweb to pay this quote
-        // NOTE: shape of this body and response WILL depend on Thirdweb’s docs.
-        // Treat everything here as a template to adapt.
-        const payRes = await axiosInstance.post(
-            `${facilitatorBaseUrl}/pay`,
-            {
-                quote,
-                option,        // or option.id / option.quoteId – adjust to their spec
-                payer: payerAddress,
-                chainId,
-            },
-            {
-                headers: apiKey
-                    ? { Authorization: `Bearer ${apiKey}` }
-                    : undefined,
-                // ensure 4xx don’t throw so we can see facilitator errors
-                validateStatus: () => true,
-            }
-        );
-
-        if (payRes.status >= 400) {
-            throw new Error(
-                `Thirdweb x402 facilitator error ${payRes.status}: ${JSON.stringify(
-                    payRes.data
-                )}`
-            );
+        const account = argAccount || defaultAccount;
+        if (!account) {
+            throw new Error("No connected account provided for x402 payment");
         }
 
-        const settlement: X402SettlementMeta | undefined =
-            payRes.data.settlement;
+        try {
+            console.log("[x402] Paying with quote:", JSON.stringify(quote, null, 2));
+            console.log("[x402] Selected option:", JSON.stringify(option, null, 2));
 
-        const paymentHeaders =
-            payRes.data.paymentHeaders ??
-            payRes.data.headers ??
-            {};
+            // 1. Resolve Chain
+            // map option.network (e.g. "avalanche-fuji" or "43113") to chain object
+            // For now, assume it's a number or we parse it
+            let chainId = 43113; // default fallback
+            const numericChain = parseInt(option.network);
+            if (!isNaN(numericChain)) {
+                chainId = numericChain;
+            } else if (option.network === "avalanche-fuji") {
+                chainId = 43113;
+            }
 
-        // 2) Retry original API call with the x402 payment header(s)
-        const finalResponse = await axiosInstance.request({
-            ...originalConfig,
-            headers: {
-                ...(originalConfig.headers ?? {}),
-                ...paymentHeaders,
-            },
-        });
+            const chain = defineChain(chainId);
 
-        return {
-            response: finalResponse,
-            settlement,
-        };
+            // 2. Prepare Transaction
+            let transaction;
+            const amountWei = BigInt(option.maxAmountRequired);
+
+            // Check if it's a native token payment or ERC20
+            // Usually empty asset or 0x000... means native
+            const isNative = !option.asset || option.asset === "0x0000000000000000000000000000000000000000";
+
+            if (isNative) {
+                transaction = prepareTransaction({
+                    chain,
+                    client,
+                    to: (option.payTo || recipientAddress || "") as `0x${string}`,
+                    value: amountWei,
+                });
+            } else {
+                // ERC20 Transfer
+                transaction = transfer({
+                    contract: {
+                        client,
+                        chain,
+                        address: option.asset,
+                    },
+                    to: option.payTo,
+                    amountWei: amountWei,
+                });
+            }
+
+            // 3. Send & Wait
+            console.log("Sending x402 payment tx...");
+            const { transactionHash } = await sendTransaction({
+                transaction,
+                account,
+            });
+            console.log("x402 payment tx sent:", transactionHash);
+
+            const receipt = await waitForReceipt({
+                client,
+                chain,
+                transactionHash,
+            });
+
+            if (receipt.status !== "success") {
+                throw new Error("Transaction reverted");
+            }
+
+            // 4. Retry Request with Proof
+            // We use the transaction hash as the x-payment token
+            const paymentToken = transactionHash;
+
+            const settlement: X402SettlementMeta = {
+                success: true,
+                transaction: transactionHash,
+                network: option.network,
+                payer: account.address,
+                errorReason: null,
+            };
+
+            const finalResponse = await axiosInstance.request({
+                ...originalConfig,
+                headers: {
+                    ...(originalConfig.headers ?? {}),
+                    "x-payment": paymentToken,
+                },
+                validateStatus: () => true,
+            });
+
+            return {
+                response: finalResponse,
+                settlement,
+            };
+
+        } catch (e: any) {
+            console.error("Thirdweb manual payment failed", e);
+            throw new Error(`Payment failed: ${e.message}`);
+        }
     };
 }

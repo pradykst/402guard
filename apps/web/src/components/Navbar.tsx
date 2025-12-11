@@ -19,6 +19,9 @@ export function Navbar() {
                         <Link href="/subscriptions-demo" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
                             Subscriptions Demo
                         </Link>
+                        <Link href="/analytics" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+                            Analytics
+                        </Link>
                         <Link href="https://github.com/pradykst/402guard" target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
                             GitHub
                         </Link>

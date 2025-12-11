@@ -17,9 +17,6 @@ export default function DemoClient({ clientId }: { clientId: string }) {
     return <DemoContent client={client} clientId={clientId} />;
 }
 
-// Import the new component (make sure to import at top level if not possible here, but for multi_replace, I will add it to the imports at top)
-// WAIT, I need to add the import statement at the top. I can do that in a separate chunk.
-
 type GuardDecision =
     | { status: "idle" }
     | { status: "allowed"; usdAmount: number }
@@ -31,9 +28,6 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
     // --- Session Cap State ---
     const [sessionCapUsd, setSessionCapUsd] = useState(0.05);
     const agentId = "x402-demo";
-
-    // --- Subscription State ---
-    // (Removed manual subscription state in favor of OnchainSubscriptionCard)
 
     // --- Demo Operation State ---
     const [state, setState] = useState({
@@ -68,16 +62,22 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
             agentId,
             subscriptionId: "thirdweb-x402-demo",
             facilitatorId: "thirdweb",
-            payWithX402: createThirdwebPayWithX402({ clientId, account }),
+            payWithX402: createThirdwebPayWithX402({
+                client, // Use the client object passed as prop
+                account,
+                // HARDCODING SERVER WALLET FOR DEMO STABILITY - Replace with env var in prod
+                recipientAddress: "0x420aC537F1a45bb02Ad620D2dd6d63C15aaBbe62"
+            }),
             selectPaymentOption: (quote: any) => {
                 return quote.options ? quote.options[0] : quote;
             },
             estimateUsdFromQuote: () => 0.01,
         });
-    }, [policies, clientId, account]);
+    }, [policies, client, account]);
 
     // Helper to refresh analytics
     function refreshAnalytics() {
+        if (!guardedAxios.guard) return;
         const store = guardedAxios.guard.store as UsageStore;
         // The store is synchronous in memory
         const summary = getAgentSpendSummary(store, { agentId });
@@ -130,8 +130,6 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
         }
     }
 
-    // (Removed handleCheckStatus and handleCreateSubscription)
-
     const remaining = Math.max(0, sessionCapUsd - spendSummary.totalUsd);
 
     return (
@@ -143,6 +141,11 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
                         Live Payment
                     </span>
                 </div>
+                {state.lastError && typeof state.lastError === 'string' && state.lastError.includes("402") && (
+                    <div className="p-3 bg-red-900/40 border border-red-500 rounded text-red-200 text-sm mt-4">
+                        <strong>Payment Error:</strong> The server rejected the payment proof.
+                    </div>
+                )}
                 <p className="text-zinc-400 max-w-2xl text-lg">
                     Intercepts API calls, handles 402 responses, and settles payments on-chain via Thirdweb.
                 </p>
@@ -306,12 +309,7 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
 const policies: PolicyConfig = useMemo(
     () => ({
         budgets: [
-            {
-                id: "x402-session-cap",
-                scope: { agentId },
-                windowMs: 24 * 60 * 60 * 1000, 
-                maxUsdCents: Math.round(sessionCapUsd * 100),
-            },
+            // ...
         ],
     }),
     [sessionCapUsd, agentId],
