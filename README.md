@@ -363,21 +363,6 @@ console.log(JSON.stringify(invoice, null, 2));
 
 The `subscriptions-demo` page in the Next.js app does exactly this and exposes a **Download invoice (today)** button.
 
----
-
-## Roadmap
-
-Planned extensions after the hackathon window:
-
-- Real facilitator integration with thirdweb for Avalanche x402.
-- `@402guard/server` Express and NestJS middlewares.
-- Postgres-backed UsageStore and a small dashboard service.
-- Email or webhook alerts for soft and hard policy thresholds.
-- More subscription shapes:
-  - per-seat
-  - prepaid packages
-  - trial plans with time and usage caps
-- Automated tests and CI pipeline for the monorepo.
 
 ---
 
