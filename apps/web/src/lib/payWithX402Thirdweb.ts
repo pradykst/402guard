@@ -1,89 +1,93 @@
-import { createBrowserThirdwebClient } from "./thirdwebClient";
-import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
-import type { PayWithX402Args, PayWithX402Result } from "@402guard/client";
-import { prepareTransaction, sendTransaction, waitForReceipt, toWei } from "thirdweb";
-import type { Account } from "thirdweb/wallets";
-import { avalancheFuji } from "thirdweb/chains"; // fallback
+// import { createBrowserThirdwebClient } from "./thirdwebClient";
+// import type { PayWithX402Args, PayWithX402Result } from "@402guard/client";
+// import { prepareTransaction, sendTransaction, waitForReceipt } from "thirdweb";
+// import type { Account } from "thirdweb/wallets";
+// import { avalancheFuji } from "thirdweb/chains";
 
-export function createThirdwebPayWithX402(config?: { clientId?: string, account?: Account | null }): (args: PayWithX402Args) => Promise<PayWithX402Result> {
-    const client = createBrowserThirdwebClient(config?.clientId);
-    const account = config?.account;
+// export function createThirdwebPayWithX402(config?: {
+//   clientId?: string;
+//   account?: Account | null;
+// }): (args: PayWithX402Args) => Promise<PayWithX402Result> {
+//   const client = createBrowserThirdwebClient(config?.clientId);
+//   const account = config?.account;
 
-    return async function payWithX402({ quote, option, originalConfig, axiosInstance }: PayWithX402Args): Promise<PayWithX402Result> {
-        console.log("Paying with x402...", {
-            quote: JSON.stringify(quote, null, 2),
-            option: JSON.stringify(option, null, 2)
-        });
+//   return async function payWithX402({
+//     quote,
+//     option,
+//     originalConfig,
+//     axiosInstance,
+//   }: PayWithX402Args): Promise<PayWithX402Result> {
+//     if (!account) {
+//       throw new Error("Wallet not connected (no account)");
+//     }
 
-        if (!account) {
-            throw new Error("Wallet not connected (no account)");
-        }
+//     console.log("Paying with x402...", { quote, option });
 
-        try {
-            const to = quote.payTo || option.to || quote.recipient;
-            let value = option.value || option.price || quote.price || 0;
+//     // Some quotes may not have `payTo`; keep it optional and use `any` so TS doesn’t choke
+//     const q: any = quote;
+//     const to = q.payTo ?? option.to ?? quote.recipient;
 
-            // Force chain to be Avalanche Fuji for this demo to avoid mismatches
-            // The error "params specify an EIP-1559 transaction..." suggests a mismatch
-            // between what prepareTransaction thinks and what the chain def says.
-            // Using the official export from thirdweb/chains is safest.
-            const chain = avalancheFuji;
+//     // Normalise the value into a bigint
+//     let value: any = option.value ?? option.price ?? quote.price ?? 0;
+//     let valueBigInt: bigint;
+//     if (typeof value === "bigint") {
+//       valueBigInt = value;
+//     } else if (typeof value === "string") {
+//       valueBigInt = BigInt(value);
+//     } else {
+//       valueBigInt = BigInt(Math.floor(Number(value)));
+//     }
 
-            console.log("Tx Details:", {
-                to,
-                value: value.toString(),
-                chain: JSON.stringify(chain, null, 2)
-            });
+//     // Force Avalanche Fuji for the demo
+//     const chain: any = avalancheFuji;
 
-            // Prepare Transaction
-            const transaction = prepareTransaction({
-                to,
-                value: BigInt(value),
-                chain,
-                client,
-            });
+//     console.log("Tx Details:", {
+//       to,
+//       value: valueBigInt.toString(),
+//       chain,
+//     });
 
-            console.log("Sending transaction...");
-            // Send
-            const { transactionHash } = await sendTransaction({
-                transaction,
-                account,
-            });
-            console.log("Tx sent/signed:", transactionHash);
+//     const transaction = prepareTransaction({
+//       to,
+//       value: valueBigInt,
+//       chain,
+//       client,
+//     });
 
-            // Wait for receipt
-            console.log("Waiting for receipt...");
-            await waitForReceipt({
-                client,
-                chain,
-                transactionHash,
-            });
-            console.log("Receipt received. Retrying request...");
+//     console.log("Sending transaction...");
+//     const { transactionHash } = await sendTransaction({
+//       transaction,
+//       account,
+//     });
+//     console.log("Tx sent:", transactionHash);
 
-            // Retry Request
-            const headers: Record<string, string> = { ...originalConfig.headers } as Record<string, string>;
-            headers["x-payment-token"] = transactionHash;
-            headers["x-payment"] = transactionHash;
+//     console.log("Waiting for receipt...");
+//     await waitForReceipt({
+//       client,
+//       chain,
+//       transactionHash,
+//     });
+//     console.log("Receipt received, retrying original request...");
 
-            console.log("Retrying with headers:", headers);
+//     const headers: Record<string, string> = {
+//       ...(originalConfig.headers as Record<string, string>),
+//       "x-payment-token": transactionHash,
+//       "x-payment": transactionHash,
+//     };
 
-            const retryResponse = await axiosInstance.request({
-                ...originalConfig,
-                headers,
-            });
+//     const retryResponse = await axiosInstance.request({
+//       ...originalConfig,
+//       headers,
+//     });
 
-            return {
-                response: retryResponse,
-                settlement: {
-                    network: chain?.chainId?.toString(),
-                    asset: "native",
-                    transaction: transactionHash,
-                },
-            };
-
-        } catch (err) {
-            console.error("Payment or Retry failed", err);
-            throw err;
-        }
-    };
-}
+//     return {
+//       response: retryResponse,
+//       settlement: {
+//         // thirdweb chains usually expose `id`; fall back to quote.chainId if present
+//         network: String(q.chainId ?? chain.id ?? ""),
+//         asset: "native",
+//         transaction: transactionHash,
+//       },
+//     };
+//   };
+// }
