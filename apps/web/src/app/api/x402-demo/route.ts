@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
     createGuardedAxios,
-    payWithX402Thirdweb,
+    createPayWithX402Thirdweb,
     pickFirstOption,
     estimateUsdFromQuote,
 } from "@402guard/client";
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
         facilitatorId: "thirdweb-x402",
         selectPaymentOption: pickFirstOption,
         estimateUsdFromQuote,
-        payWithX402: payWithX402Thirdweb,
+        payWithX402: createPayWithX402Thirdweb(),
     });
 
     try {
