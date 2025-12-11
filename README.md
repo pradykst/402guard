@@ -6,8 +6,9 @@ You add one import, and your x402 calls gain spend limits, rate limits, usage qu
 Built for the **Avalanche x402 Hack2Build – Payments (Tooling & Infrastructure)** track.
 
 ---
+<img width="2752" height="1536" alt="Gemini_Generated_Image_hcmhgihcmhgihcmh" src="https://github.com/user-attachments/assets/d730d593-cf66-4866-8dfe-c9fad17e2a2f" />
 
-![402Guard UI](https://github.com/user-attachments/assets/dc5bdc14-b5f5-4301-8761-bda8a83de4c5)
+
 
 ## Why 402Guard
 
@@ -362,21 +363,6 @@ console.log(JSON.stringify(invoice, null, 2));
 
 The `subscriptions-demo` page in the Next.js app does exactly this and exposes a **Download invoice (today)** button.
 
----
-
-## Roadmap
-
-Planned extensions after the hackathon window:
-
-- Real facilitator integration with thirdweb for Avalanche x402.
-- `@402guard/server` Express and NestJS middlewares.
-- Postgres-backed UsageStore and a small dashboard service.
-- Email or webhook alerts for soft and hard policy thresholds.
-- More subscription shapes:
-  - per-seat
-  - prepaid packages
-  - trial plans with time and usage caps
-- Automated tests and CI pipeline for the monorepo.
 
 ---
 
