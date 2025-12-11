@@ -5,8 +5,8 @@ import type {
     X402SettlementMeta,
 } from "./types";
 import type { AxiosInstance, AxiosRequestConfig, AxiosResponse } from "axios";
+
 // packages/client/src/x402.ts
-import { createThirdwebPayWithX402 } from "./x402-thirdweb";
 
 
 /**
@@ -81,10 +81,7 @@ export async function payWithX402Avalanche<T = any, R = AxiosResponse<T>>(args: 
 
 // packages/client/src/x402.ts (bottom)
 
-export const payWithX402Thirdweb = createThirdwebPayWithX402({
-    facilitatorBaseUrl:
-        process.env.THIRDWEB_X402_FACILITATOR_URL ?? "",
-    apiKey: process.env.THIRDWEB_X402_API_KEY,
-    payerAddress: process.env.THIRDWEB_X402_PAYER_ADDRESS as `0x${string}`,
-    chainId: Number(process.env.THIRDWEB_X402_CHAIN_ID ?? "43113"),
-});
+
+// packages/client/src/x402.ts (bottom)
+
+export { createPayWithX402Thirdweb } from "./x402-thirdweb";

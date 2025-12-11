@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { ThirdwebProvider, ConnectButton, useActiveAccount } from "thirdweb/react";
+import { ThirdwebProvider, ConnectButton, useActiveAccount, useActiveWallet } from "thirdweb/react";
 import { createBrowserThirdwebClient } from "@/lib/thirdwebClient";
-import { createThirdwebPayWithX402 } from "@/lib/payWithX402Thirdweb";
-import { createGuardedAxios, getAgentSpendSummary, type UsageStore, type PolicyConfig } from "@402guard/client";
+import { createPayWithX402Thirdweb, createGuardedAxios, getAgentSpendSummary, type UsageStore, type PolicyConfig } from "@402guard/client";
 import { avalancheFuji } from "thirdweb/chains";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
@@ -13,6 +12,7 @@ import { OnchainSubscriptionCard } from "@/components/OnchainSubscriptionCard";
 
 export default function DemoClient({ clientId }: { clientId: string }) {
     const client = useMemo(() => createBrowserThirdwebClient(clientId), [clientId]);
+    console.log("createPayWithX402Thirdweb typeof", typeof createPayWithX402Thirdweb);
 
     return <DemoContent client={client} clientId={clientId} />;
 }
@@ -24,6 +24,7 @@ type GuardDecision =
 
 function DemoContent({ client, clientId }: { client: any, clientId: string }) {
     const account = useActiveAccount();
+    const wallet = useActiveWallet();
 
     // --- Session Cap State ---
     const [sessionCapUsd, setSessionCapUsd] = useState(0.05);
@@ -62,18 +63,17 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
             agentId,
             subscriptionId: "thirdweb-x402-demo",
             facilitatorId: "thirdweb",
-            payWithX402: createThirdwebPayWithX402({
-                client, // Use the client object passed as prop
-                account,
-                // HARDCODING SERVER WALLET FOR DEMO STABILITY - Replace with env var in prod
-                recipientAddress: "0x420aC537F1a45bb02Ad620D2dd6d63C15aaBbe62"
+            payWithX402: createPayWithX402Thirdweb({
+                client,
+                // @ts-ignore - Wallet types might slightly mistmatch between installed versions, but it's the same object
+                wallet: wallet || undefined,
             }),
             selectPaymentOption: (quote: any) => {
                 return quote.options ? quote.options[0] : quote;
             },
             estimateUsdFromQuote: () => 0.01,
         });
-    }, [policies, client, account]);
+    }, [policies, client, wallet]);
 
     // Helper to refresh analytics
     function refreshAnalytics() {
