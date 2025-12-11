@@ -145,6 +145,10 @@ function DemoContent({ client, clientId }: { client: any, clientId: string }) {
                 <p className="text-zinc-400 max-w-2xl text-lg">
                     Intercepts API calls, handles 402 responses, and settles payments on-chain via Thirdweb.
                 </p>
+
+                <div className="p-4 bg-zinc-900 border border-zinc-700/50 rounded-lg text-sm text-zinc-400 mt-4 max-w-3xl leading-relaxed">
+                    <strong className="text-zinc-300">Note:</strong> This demo settles x402 payments on Arbitrum Sepolia instead of Avalanche Fuji because the thirdweb facilitator currently relies on EIP 7702, which is not yet supported on Avalanche Fuji. In a production Avalanche setup we can remove the facilitator and verify a normal USDC.e transfer on Avalanche directly, so all x402 payments remain Avalanche native.
+                </div>
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
