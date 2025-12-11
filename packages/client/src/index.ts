@@ -34,6 +34,8 @@ export type {
     ServiceSpendSummary,
     AgentSpendSummary,
     SubscriptionSpendSummary,
+    PayWithX402Args,
+    PayWithX402Result,
 
 };
 export { InMemoryUsageStore, enforcePolicies, getServiceSpendSummary, getAgentSpendSummary, generateInvoiceCsv, getSubscriptionSpendSummary };
