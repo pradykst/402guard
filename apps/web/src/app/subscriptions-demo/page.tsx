@@ -65,11 +65,7 @@ function getClientForPlan(plan: PlanId) {
 
 
 export default function SubscriptionsDemoPage() {
-    return (
-        <ThirdwebProvider>
-            <SubscriptionsDemoContent />
-        </ThirdwebProvider>
-    );
+    return <SubscriptionsDemoContent />;
 }
 
 function SubscriptionsDemoContent() {

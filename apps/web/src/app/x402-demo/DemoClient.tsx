@@ -14,11 +14,7 @@ import { OnchainSubscriptionCard } from "@/components/OnchainSubscriptionCard";
 export default function DemoClient({ clientId }: { clientId: string }) {
     const client = useMemo(() => createBrowserThirdwebClient(clientId), [clientId]);
 
-    return (
-        <ThirdwebProvider>
-            <DemoContent client={client} clientId={clientId} />
-        </ThirdwebProvider>
-    );
+    return <DemoContent client={client} clientId={clientId} />;
 }
 
 // Import the new component (make sure to import at top level if not possible here, but for multi_replace, I will add it to the imports at top)

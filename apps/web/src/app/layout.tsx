@@ -20,6 +20,8 @@ export const metadata: Metadata = {
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 
+import { ThirdwebProvider } from "thirdweb/react";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,11 +32,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground h-full flex flex-col`}
       >
-        <Navbar />
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8">
-          {children}
-        </main>
-        <Footer />
+        <ThirdwebProvider>
+          <Navbar />
+          <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8">
+            {children}
+          </main>
+          <Footer />
+        </ThirdwebProvider>
       </body>
     </html>
   );
