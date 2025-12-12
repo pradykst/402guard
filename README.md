@@ -9,7 +9,7 @@ Built for the **Avalanche x402 Hack2Build – Payments (Tooling & Infrastructure
 <img width="2752" height="1536" alt="Gemini_Generated_Image_hcmhgihcmhgihcmh" src="https://github.com/user-attachments/assets/d730d593-cf66-4866-8dfe-c9fad17e2a2f" />
 
 
-
+Demo : https://youtu.be/NHgjAU1azqM?si=ImlwDN02HNeC5K5b
 ## Why 402Guard
 
 x402 solves how to pay for APIs over HTTP with on-chain settlement.  
@@ -365,6 +365,7 @@ The `subscriptions-demo` page in the Next.js app does exactly this and exposes a
 
 
 ---
+
 
 ## License
 
